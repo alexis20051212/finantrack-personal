@@ -1,0 +1,105 @@
+{% extends 'base.html' %} {% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">
+        <span class="auth-logo-icon">🦊</span>
+        <h2>FinanTrack</h2>
+      </div>
+      <p class="auth-subtitle">Tu control financiero personal</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('login') }}" class="auth-form">
+      <div class="form-group">
+        <label for="email">
+          <i class="fas fa-envelope input-icon"></i>
+          Correo electrónico
+        </label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          required
+          placeholder="tu@email.com"
+          value="{{ request.form.email }}"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">
+          <i class="fas fa-lock input-icon"></i>
+          Contraseña
+        </label>
+        <div class="password-wrapper">
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            placeholder="Tu contraseña"
+          />
+          <button type="button" class="toggle-password" data-target="password">
+            <i class="far fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="auth-btn">
+        <i class="fas fa-rocket"></i>
+        Iniciar Sesión
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>
+        ¿No tienes cuenta?
+        <a href="{{ url_for('register') }}">Regístrate aquí</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="auth-features">
+    <div class="feature-item">
+      <i class="fas fa-chart-line feature-icon"></i>
+      <div>
+        <h4>Control total</h4>
+        <p>Registra todos tus ingresos y gastos</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <i class="fas fa-chart-pie feature-icon"></i>
+      <div>
+        <h4>Estadísticas claras</h4>
+        <p>Visualiza tus hábitos financieros</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <i class="fas fa-lightbulb feature-icon"></i>
+      <div>
+        <h4>Consejos inteligentes</h4>
+        <p>Recibe recomendaciones personalizadas</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll(".toggle-password").forEach((button) => {
+    button.addEventListener("click", function () {
+      const targetId = this.getAttribute("data-target");
+      const input = document.getElementById(targetId);
+      const icon = this.querySelector("i");
+
+      if (input.getAttribute("type") === "password") {
+        input.setAttribute("type", "text");
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+      } else {
+        input.setAttribute("type", "password");
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+      }
+    });
+  });
+</script>
+{% endblock %}

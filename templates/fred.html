@@ -1,0 +1,848 @@
+{% extends "base.html" %} {% block title %}Datos Económicos FRED{% endblock %}
+{% block content %}
+<div class="container">
+  <!-- Encabezado - MISMO DISEÑO QUE DIVISAS -->
+  <div
+    class="card"
+    style="
+      background: linear-gradient(
+        135deg,
+        #1e3a5f 0%,
+        #8b5cf6 50%,
+        #7c3aed 100%
+      );
+      border: none;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    "
+  >
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+      "
+    >
+      <div>
+        <h1
+          id="fredTitle"
+          style="
+            color: #ffffff;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+          "
+        >
+          <i
+            id="fredIcon"
+            class="fas fa-chart-bar"
+            style="margin-right: 0.75rem; color: #ffffff"
+          ></i
+          >Datos Económicos FRED
+        </h1>
+        <p
+          id="fredSubtitle"
+          style="
+            color: #ffffff;
+            font-size: 1.1rem;
+            margin: 0;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            opacity: 0.95;
+          "
+        >
+          Datos económicos de la Reserva Federal de Estados Unidos
+        </p>
+      </div>
+      <div style="font-size: 4rem; opacity: 0.2; color: #ffffff">
+        <i class="fas fa-university"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Consejos para entender FRED -->
+  <div
+    class="card"
+    style="
+      background: rgba(139, 92, 246, 0.08);
+      border-color: rgba(139, 92, 246, 0.2);
+      margin-bottom: 1.5rem;
+      padding: 1.5rem;
+    "
+  >
+    <h3
+      style="
+        color: #a78bfa;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      "
+    >
+      <i class="fas fa-lightbulb"></i> ¿Qué es FRED y cómo funciona?
+    </h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
+      <div
+        style="
+          background: rgba(30, 41, 59, 0.3);
+          border-radius: 0.75rem;
+          padding: 1rem;
+          border: 1px solid rgba(139, 92, 246, 0.1);
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+          "
+        >
+          <i class="fas fa-database" style="color: #8b5cf6"></i>
+          <span style="font-weight: 600; color: #f1f5f9">¿Qué es FRED?</span>
+        </div>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin: 0">
+          FRED (Federal Reserve Economic Data) es una base de datos mantenida
+          por la Reserva Federal de St. Louis que proporciona acceso gratuito a
+          miles de series de datos económicos de Estados Unidos y otros países.
+        </p>
+      </div>
+      <div
+        style="
+          background: rgba(30, 41, 59, 0.3);
+          border-radius: 0.75rem;
+          padding: 1rem;
+          border: 1px solid rgba(139, 92, 246, 0.1);
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+          "
+        >
+          <i class="fas fa-arrow-right" style="color: #34d399"></i>
+          <span style="font-weight: 600; color: #f1f5f9"
+            >¿Qué puedes hacer aquí?</span
+          >
+        </div>
+        <ul
+          style="
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin: 0;
+            padding-left: 1.2rem;
+          "
+        >
+          <li>Ver datos económicos actualizados diariamente</li>
+          <li>Consultar series históricas</li>
+          <li>Visualizar tendencias en gráficos interactivos</li>
+          <li>Monitorear indicadores clave (inflación, desempleo, PIB)</li>
+        </ul>
+      </div>
+    </div>
+    <div
+      style="
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+        margin-top: 1rem;
+      "
+    >
+      <div
+        style="
+          background: rgba(30, 41, 59, 0.2);
+          border-radius: 0.75rem;
+          padding: 0.75rem;
+          text-align: center;
+          border: 1px solid rgba(139, 92, 246, 0.1);
+        "
+      >
+        <div style="font-size: 1.5rem; color: #fbbf24">📊</div>
+        <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem">
+          <span style="color: #fbbf24; font-weight: 600">Inflación</span><br />
+          Índice de Precios al Consumidor (IPC)
+        </div>
+      </div>
+      <div
+        style="
+          background: rgba(30, 41, 59, 0.2);
+          border-radius: 0.75rem;
+          padding: 0.75rem;
+          text-align: center;
+          border: 1px solid rgba(139, 92, 246, 0.1);
+        "
+      >
+        <div style="font-size: 1.5rem; color: #f87171">🏦</div>
+        <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem">
+          <span style="color: #f87171; font-weight: 600">Tasas de Interés</span
+          ><br />
+          Tasa de Fondos Federales
+        </div>
+      </div>
+      <div
+        style="
+          background: rgba(30, 41, 59, 0.2);
+          border-radius: 0.75rem;
+          padding: 0.75rem;
+          text-align: center;
+          border: 1px solid rgba(139, 92, 246, 0.1);
+        "
+      >
+        <div style="font-size: 1.5rem; color: #34d399">📈</div>
+        <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem">
+          <span style="color: #34d399; font-weight: 600">Crecimiento</span
+          ><br />
+          Producto Interno Bruto (PIB)
+        </div>
+      </div>
+    </div>
+    <div
+      style="
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: rgba(251, 191, 36, 0.08);
+        border-radius: 0.75rem;
+        border-left: 3px solid #fbbf24;
+      "
+    >
+      <p style="color: #94a3b8; font-size: 0.85rem; margin: 0">
+        <i class="fas fa-info-circle" style="color: #fbbf24"></i>
+        <strong style="color: #fbbf24">Tip:</strong> Haz clic en cualquier
+        indicador para ver su evolución histórica en un gráfico interactivo.
+      </p>
+    </div>
+  </div>
+
+  <!-- Grid de series -->
+  <div
+    style="
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    "
+  >
+    {% for series_id, series_name in series.items() %}
+    <div
+      class="card series-card"
+      style="
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(139, 92, 246, 0.15);
+      "
+      onclick="loadSeriesData('{{ series_id }}')"
+      onmouseover="
+        this.style.transform = 'translateY(-4px)';
+        this.style.borderColor = '#8B5CF6';
+      "
+      onmouseout="
+        this.style.transform = 'translateY(0)';
+        this.style.borderColor = 'rgba(139, 92, 246, 0.15)';
+      "
+    >
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+        "
+      >
+        <div>
+          <div style="font-weight: 600; font-size: 0.9rem; color: #f1f5f9">
+            {{ series_name }}
+          </div>
+          <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.25rem">
+            <i class="fas fa-code"></i> {{ series_id }}
+          </div>
+        </div>
+        <div
+          id="latest-{{ series_id }}"
+          style="
+            font-size: 0.8rem;
+            color: #10b981;
+            font-weight: 600;
+            text-align: right;
+          "
+        >
+          <i class="fas fa-spinner fa-spin"></i>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Detalles de la serie seleccionada -->
+  <div
+    id="seriesDetail"
+    class="card"
+    style="
+      display: none;
+      padding: 1.5rem;
+      margin-top: 1rem;
+      border: 1px solid rgba(139, 92, 246, 0.15);
+    "
+  >
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      "
+    >
+      <div>
+        <h3
+          id="detailTitle"
+          style="color: #f1f5f9; margin: 0; font-size: 1.2rem"
+        ></h3>
+        <p
+          id="detailInfo"
+          style="color: #94a3b8; font-size: 0.85rem; margin: 0.25rem 0 0 0"
+        ></p>
+      </div>
+      <div style="display: flex; gap: 0.5rem; align-items: center">
+        <span
+          id="detailValue"
+          style="font-size: 1.5rem; font-weight: 700; color: #34d399"
+        ></span>
+        <span id="detailUnits" style="font-size: 0.8rem; color: #94a3b8"></span>
+      </div>
+    </div>
+    <div style="height: 300px; position: relative">
+      <canvas id="seriesChart"></canvas>
+    </div>
+    <div
+      style="
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: rgba(139, 92, 246, 0.05);
+        border-radius: 0.75rem;
+        border-left: 3px solid #8b5cf6;
+      "
+    >
+      <p style="color: #94a3b8; font-size: 0.8rem; margin: 0">
+        <i class="fas fa-chart-line" style="color: #8b5cf6"></i>
+        El gráfico muestra la evolución de esta serie en los últimos 365 días.
+        Los datos son proporcionados por FRED y se actualizan diariamente.
+      </p>
+    </div>
+  </div>
+
+  <!-- Agradecimiento a FRED -->
+  <div
+    class="card"
+    style="
+      background: rgba(139, 92, 246, 0.05);
+      border-color: rgba(139, 92, 246, 0.15);
+      margin-top: 1.5rem;
+      padding: 1.5rem;
+    "
+  >
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      "
+    >
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          flex: 1;
+          min-width: 280px;
+        "
+      >
+        <div
+          id="fredApiLogo"
+          style="
+            flex-shrink: 0;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border: 1px solid #334155;
+          "
+        >
+          <svg
+            width="36"
+            height="36"
+            viewBox="0 0 40 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect width="40" height="40" rx="8" fill="#8B5CF6" />
+            <path
+              d="M12 15L20 10L28 15L20 20L12 15Z"
+              stroke="white"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M12 20L20 25L28 20"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M12 25L20 30L28 25"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="12" cy="15" r="1.5" fill="white" />
+            <circle cx="20" cy="10" r="1.5" fill="white" />
+            <circle cx="28" cy="15" r="1.5" fill="white" />
+            <circle cx="20" cy="20" r="1.5" fill="white" />
+            <circle cx="12" cy="25" r="1.5" fill="white" />
+            <circle cx="20" cy="25" r="1.5" fill="white" />
+            <circle cx="28" cy="25" r="1.5" fill="white" />
+          </svg>
+          <div>
+            <div
+              id="fredApiTitle"
+              style="font-weight: 700; font-size: 0.85rem; color: #f1f5f9"
+            >
+              FRED API
+            </div>
+            <div
+              id="fredApiSubtitle"
+              style="font-size: 0.65rem; color: #94a3b8"
+            >
+              Federal Reserve Economic Data
+            </div>
+          </div>
+        </div>
+
+        <div style="flex: 1; text-align: center">
+          <p
+            style="
+              color: #8b5cf6;
+              margin: 0;
+              font-size: 0.95rem;
+              font-weight: 500;
+            "
+          >
+            Gracias a FRED API por proporcionar datos económicos en tiempo real
+          </p>
+          <p style="color: #94a3b8; font-size: 0.8rem; margin: 0.25rem 0 0 0">
+            <i class="fas fa-check-circle" style="color: #8b5cf6"></i>
+            Datos actualizados diariamente • Gratuito para uso personal
+          </p>
+        </div>
+      </div>
+      <div style="display: flex; gap: 0.5rem; flex-shrink: 0">
+        <a
+          href="https://fred.stlouisfed.org/"
+          target="_blank"
+          style="
+            background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
+            padding: 0.4rem 1.2rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(139, 92, 246, 0.15);
+          "
+          onmouseover="this.style.background = 'rgba(139, 92, 246, 0.25)'"
+          onmouseout="this.style.background = 'rgba(139, 92, 246, 0.15)'"
+        >
+          <i class="fas fa-external-link-alt"></i> Visitar FRED
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  let chartInstance = null;
+
+  async function loadSeriesData(seriesId) {
+      const detailDiv = document.getElementById('seriesDetail');
+      const title = document.getElementById('detailTitle');
+      const info = document.getElementById('detailInfo');
+      const value = document.getElementById('detailValue');
+      const units = document.getElementById('detailUnits');
+
+      // Mostrar loading
+      detailDiv.style.display = 'block';
+      title.textContent = 'Cargando...';
+      value.textContent = '...';
+
+      try {
+          // Obtener información de la serie
+          const infoResponse = await fetch(`/api/fred/series/${seriesId}/info`);
+          const infoData = await infoResponse.json();
+
+          if (infoData.success) {
+              const seriesInfo = infoData.info;
+              title.textContent = seriesInfo.title || seriesId;
+              info.textContent = `Frecuencia: ${seriesInfo.frequency || 'N/A'} | Ajuste: ${seriesInfo.seasonal_adjustment || 'N/A'}`;
+          }
+
+          // Obtener datos de la serie
+          const dataResponse = await fetch(`/api/fred/series/${seriesId}/data?days=365`);
+          const dataData = await dataResponse.json();
+
+          if (dataData.success && dataData.data.length > 0) {
+              const seriesData = dataData.data;
+              const latest = seriesData[0];
+
+              value.textContent = latest.value.toFixed(2);
+              units.textContent = infoData.success ? infoData.info.units || '' : '';
+
+              // Crear gráfico
+              createChart(seriesId, seriesData);
+          } else {
+              value.textContent = 'Sin datos';
+              units.textContent = '';
+          }
+      } catch (error) {
+          console.error('Error:', error);
+          title.textContent = 'Error al cargar datos';
+          value.textContent = 'Error';
+      }
+  }
+
+  function createChart(seriesId, data) {
+      const canvas = document.getElementById('seriesChart');
+      const ctx = canvas.getContext('2d');
+
+      // Destruir gráfico anterior si existe
+      if (chartInstance) {
+          chartInstance.destroy();
+      }
+
+      // Preparar datos para Chart.js
+      const labels = data.map(d => d.date).reverse();
+      const values = data.map(d => d.value).reverse();
+
+      // Colores según la serie
+      const colors = {
+          'GDP': '#34D399',
+          'GDPC1': '#34D399',
+          'GDPPOT': '#34D399',
+          'CPIAUCSL': '#FBBF24',
+          'CPI': '#FBBF24',
+          'FEDFUNDS': '#F87171',
+          'DGS10': '#60A5FA',
+          'UNRATE': '#A78BFA',
+          'PAYEMS': '#34D399',
+          'INDPRO': '#60A5FA',
+          'RETAIL': '#FBBF24',
+          'HOUST': '#34D399',
+          'M1SL': '#A78BFA',
+          'M2SL': '#A78BFA',
+          'DEXUSEU': '#60A5FA',
+          'DEXMXUS': '#FBBF24',
+          'DEXCAUS': '#F87171',
+          'DEXJPUS': '#34D399',
+          'DEXCHUS': '#FBBF24',
+          'DEXBZUS': '#34D399',
+          'default': '#A78BFA'
+      };
+
+      const color = colors[seriesId] || colors.default;
+      const isLight = document.body.getAttribute('data-theme') === 'light';
+      const textColor = isLight ? '#1E293B' : '#94A3B8';
+      const gridColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(148, 163, 184, 0.1)';
+
+      chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+              labels: labels,
+              datasets: [{
+                  label: seriesId,
+                  data: values,
+                  borderColor: color,
+                  backgroundColor: color + '20',
+                  fill: true,
+                  tension: 0.4,
+                  pointRadius: 2,
+                  pointHoverRadius: 6,
+                  borderWidth: 2
+              }]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                  legend: {
+                      display: false
+                  },
+                  tooltip: {
+                      callbacks: {
+                          label: function(context) {
+                              return context.parsed.y.toFixed(2);
+                          }
+                      }
+                  }
+              },
+              scales: {
+                  x: {
+                      grid: {
+                          color: gridColor
+                      },
+                      ticks: {
+                          color: textColor,
+                          maxTicksLimit: 12
+                      }
+                  },
+                  y: {
+                      grid: {
+                          color: gridColor
+                      },
+                      ticks: {
+                          color: textColor
+                      }
+                  }
+              }
+          }
+      });
+  }
+
+  // Cargar valores más recientes para todas las series
+  async function loadLatestValues() {
+      const seriesIds = Object.keys({{ series|tojson }});
+
+      for (const id of seriesIds) {
+          try {
+              const response = await fetch(`/api/fred/series/${id}/latest`);
+              const data = await response.json();
+
+              const element = document.getElementById(`latest-${id}`);
+              if (element && data.success && data.latest_value !== null) {
+                  element.innerHTML = `${data.latest_value.toFixed(2)}`;
+                  element.style.color = '#34D399';
+              } else if (element) {
+                  element.innerHTML = 'N/A';
+                  element.style.color = '#94A3B8';
+              }
+          } catch (error) {
+              console.error(`Error loading ${id}:`, error);
+              const element = document.getElementById(`latest-${id}`);
+              if (element) {
+                  element.innerHTML = 'Error';
+                  element.style.color = '#F87171';
+              }
+          }
+      }
+  }
+
+  // Cargar valores al iniciar
+  document.addEventListener('DOMContentLoaded', function() {
+      loadLatestValues();
+
+      // Actualizar cada 5 minutos
+      setInterval(loadLatestValues, 300000);
+  });
+
+  // Estilos para modo claro - MISMO QUE DIVISAS
+  document.addEventListener('DOMContentLoaded', function() {
+      const updateStyles = () => {
+          const isLight = document.body.getAttribute('data-theme') === 'light';
+
+          // Título y subtítulo - NEGRO en modo claro (IGUAL QUE DIVISAS)
+          const title = document.getElementById('fredTitle');
+          const icon = document.getElementById('fredIcon');
+          const subtitle = document.getElementById('fredSubtitle');
+
+          if (title) {
+              title.style.color = isLight ? '#1E293B' : '#FFFFFF';
+              title.style.textShadow = isLight ? '0 1px 2px rgba(0,0,0,0.1)' : '0 2px 4px rgba(0,0,0,0.3)';
+          }
+          if (icon) {
+              icon.style.color = isLight ? '#1E293B' : '#FFFFFF';
+          }
+          if (subtitle) {
+              subtitle.style.color = isLight ? '#1E293B' : '#FFFFFF';
+              subtitle.style.textShadow = isLight ? '0 1px 2px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.3)';
+          }
+
+          // Detalle de la serie
+          const detailTitle = document.getElementById('detailTitle');
+          if (detailTitle) {
+              detailTitle.style.color = isLight ? '#1E293B' : '#F1F5F9';
+          }
+
+          // Consejos
+          document.querySelectorAll('.card[style*="background: rgba(139, 92, 246, 0.08)"] span[style*="font-weight: 600"]').forEach(el => {
+              el.style.color = isLight ? '#1E293B' : '#F1F5F9';
+          });
+          document.querySelectorAll('.card[style*="background: rgba(139, 92, 246, 0.08)"] p, .card[style*="background: rgba(139, 92, 246, 0.08)"] li').forEach(el => {
+              el.style.color = isLight ? '#475569' : '#94A3B8';
+          });
+
+          // Tarjetas de series
+          document.querySelectorAll('.series-card').forEach(el => {
+              const titleEl = el.querySelector('div[style*="font-weight: 600"]');
+              if (titleEl) {
+                  titleEl.style.color = isLight ? '#1E293B' : '#F1F5F9';
+              }
+              el.style.background = isLight ? '#F8FAFC' : 'rgba(30, 41, 59, 0.7)';
+              el.style.borderColor = isLight ? '#E2E8F0' : 'rgba(139, 92, 246, 0.15)';
+          });
+
+          // API Logo
+          const apiLogo = document.getElementById('fredApiLogo');
+          const apiTitle = document.getElementById('fredApiTitle');
+          const apiSubtitle = document.getElementById('fredApiSubtitle');
+
+          if (apiLogo) {
+              apiLogo.style.background = isLight ? '#F8FAFC' : '#1E293B';
+              apiLogo.style.borderColor = isLight ? '#E2E8F0' : '#334155';
+          }
+          if (apiTitle) {
+              apiTitle.style.color = isLight ? '#1E293B' : '#F1F5F9';
+          }
+          if (apiSubtitle) {
+              apiSubtitle.style.color = isLight ? '#64748B' : '#94A3B8';
+          }
+      };
+
+      updateStyles();
+
+      const observer = new MutationObserver(() => {
+          updateStyles();
+      });
+      observer.observe(document.body, {
+          attributes: true,
+          attributeFilter: ['data-theme']
+      });
+  });
+</script>
+
+<!-- Estilos para modo claro - MISMO QUE DIVISAS -->
+<style>
+  body[data-theme="light"] .card {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  body[data-theme="light"] .series-card {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  body[data-theme="light"] .series-card:hover {
+    border-color: #8b5cf6 !important;
+    background: #ffffff !important;
+  }
+
+  body[data-theme="light"] #detailTitle {
+    color: #1e293b !important;
+  }
+
+  body[data-theme="light"] #detailInfo {
+    color: #64748b !important;
+  }
+
+  body[data-theme="light"] #detailValue {
+    color: #059669 !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.05)"] {
+    background: rgba(139, 92, 246, 0.05) !important;
+    border-color: rgba(139, 92, 246, 0.15) !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.05)"]
+    p {
+    color: #7c3aed !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.05)"]
+    a {
+    color: #7c3aed !important;
+    border-color: rgba(124, 58, 237, 0.15) !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.05)"]
+    a:hover {
+    background: rgba(124, 58, 237, 0.15) !important;
+  }
+
+  body[data-theme="light"] #seriesDetail {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"] {
+    background: rgba(139, 92, 246, 0.05) !important;
+    border-color: rgba(139, 92, 246, 0.15) !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"]
+    h3 {
+    color: #7c3aed !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"]
+    div[style*="background: rgba(30, 41, 59, 0.3)"] {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"]
+    div[style*="background: rgba(30, 41, 59, 0.2)"] {
+    background: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"]
+    div[style*="background: rgba(30, 41, 59, 0.3)"]
+    p,
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"]
+    div[style*="background: rgba(30, 41, 59, 0.2)"]
+    div {
+    color: #475569 !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(139, 92, 246, 0.08)"]
+    div[style*="background: rgba(30, 41, 59, 0.2)"]
+    div[style*="font-size: 0.8rem"] {
+    color: #64748b !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(251, 191, 36, 0.08)"] {
+    background: rgba(251, 191, 36, 0.05) !important;
+  }
+
+  body[data-theme="light"]
+    .card[style*="background: rgba(251, 191, 36, 0.08)"]
+    p {
+    color: #475569 !important;
+  }
+</style>
+{% endblock %}

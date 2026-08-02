@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Divisas{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Encabezado -->
+    <div class="card" style="background: linear-gradient(135deg, #1E3A5F 0%, #3B82F6 50%, #7C3AED 100%); border: none; padding: 2rem; margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h1 id="divisasTitle" style="color: #FFFFFF; font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                    <i id="globeIcon" class="fas fa-globe-americas" style="margin-right: 0.75rem; color: #FFFFFF;"></i>Divisas
+                </h1>
+                <p style="color: #FFFFFF; font-size: 1.1rem; margin: 0; text-shadow: 0 1px 3px rgba(0,0,0,0.3); opacity: 0.95;">
+                    Gestiona tus monedas y convierte divisas en tiempo real
+                </p>
+            </div>
+            <div style="font-size: 4rem; opacity: 0.2; color: #FFFFFF;">
+                <i class="fas fa-coins"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid de 2 columnas -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+
+        <!-- Tarjeta 1: Moneda Predeterminada -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #3B82F6, #2563EB); padding: 1rem 1.5rem;">
+                <h3 style="color: white; margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-cog"></i> Moneda Predeterminada
+                </h3>
+            </div>
+            <div style="padding: 1.5rem;">
+                <p style="color: #94A3B8; font-size: 0.9rem; margin-bottom: 1rem;">
+                    Selecciona la moneda en la que deseas ver tus finanzas
+                </p>
+                <div style="position: relative;">
+                    <select id="defaultCurrency" 
+                            style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 2px solid #334155; background: #1E293B; color: #F1F5F9; font-size: 1rem; cursor: pointer; appearance: none; transition: border-color 0.3s ease;"
+                            onfocus="this.style.borderColor='#3B82F6'"
+                            onblur="this.style.borderColor='#334155'">
+                        {% for code, name in currencies %}
+                        <option value="{{ code }}" {% if code == user_currency %}selected="selected"{% endif %}>
+                            {{ code }} - {{ name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: #94A3B8;">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+                <button onclick="saveCurrency()" 
+                        style="margin-top: 1rem; width: 100%; padding: 0.75rem; background: linear-gradient(135deg, #3B82F6, #2563EB); color: white; border: none; border-radius: 0.75rem; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                        onmouseover="this.style.transform='scale(1.02)'"
+                        onmouseout="this.style.transform='scale(1)'">
+                    <i class="fas fa-save"></i> Guardar Configuración
+                </button>
+            </div>
+        </div>
+
+        <!-- Tarjeta 2: Conversor -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #10B981, #059669); padding: 1rem 1.5rem;">
+                <h3 style="color: white; margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-exchange-alt"></i> Conversor de Monedas
+                </h3>
+            </div>
+            <div style="padding: 1.5rem;">
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 500; color: #94A3B8; margin-bottom: 0.5rem;">
+                        <i class="fas fa-dollar-sign" style="color: #10B981; margin-right: 0.25rem;"></i> Cantidad
+                    </label>
+                    <input type="number" id="amount" value="100" 
+                           style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 2px solid #334155; background: #1E293B; color: #F1F5F9; font-size: 1.1rem; transition: border-color 0.3s ease;"
+                           onfocus="this.style.borderColor='#10B981'"
+                           onblur="this.style.borderColor='#334155'">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 500; color: #94A3B8; margin-bottom: 0.5rem;">
+                            <i class="fas fa-arrow-up" style="color: #3B82F6; margin-right: 0.25rem;"></i> De
+                        </label>
+                        <select id="fromCurrency" 
+                                style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 2px solid #334155; background: #1E293B; color: #F1F5F9; font-size: 1rem; cursor: pointer; appearance: none; transition: border-color 0.3s ease;"
+                                onfocus="this.style.borderColor='#3B82F6'"
+                                onblur="this.style.borderColor='#334155'">
+                            {% for code, name in currencies %}
+                            <option value="{{ code }}" {% if code == "USD" %}selected="selected"{% endif %}>
+                                {{ code }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 500; color: #94A3B8; margin-bottom: 0.5rem;">
+                            <i class="fas fa-arrow-down" style="color: #10B981; margin-right: 0.25rem;"></i> A
+                        </label>
+                        <select id="toCurrency" 
+                                style="width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 2px solid #334155; background: #1E293B; color: #F1F5F9; font-size: 1rem; cursor: pointer; appearance: none; transition: border-color 0.3s ease;"
+                                onfocus="this.style.borderColor='#10B981'"
+                                onblur="this.style.borderColor='#334155'">
+                            {% for code, name in currencies %}
+                            <option value="{{ code }}" {% if code == user_currency %}selected="selected"{% endif %}>
+                                {{ code }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <button onclick="convertCurrency()" 
+                        style="width: 100%; padding: 0.75rem; background: linear-gradient(135deg, #10B981, #059669); color: white; border: none; border-radius: 0.75rem; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                        onmouseover="this.style.transform='scale(1.02)'"
+                        onmouseout="this.style.transform='scale(1)'">
+                    <i class="fas fa-calculator"></i> Convertir
+                </button>
+                
+                <div id="result" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 0.75rem; border: 2px solid rgba(59, 130, 246, 0.3);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.9rem; color: #94A3B8;">Resultado:</span>
+                        <span id="conversionResult" style="font-size: 1.2rem; font-weight: 700; color: #F1F5F9;"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjeta 3: Tasas de cambio (ancho completo) -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #8B5CF6, #7C3AED); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <h3 style="color: white; margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-chart-line"></i> Tasas de Cambio Actuales
+            </h3>
+            <button onclick="loadExchangeRates()" 
+                    style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.85rem; transition: all 0.3s ease; display: flex; align-items: center; gap: 0.5rem;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+        </div>
+        <div style="padding: 1.5rem;">
+            <div id="exchangeRates" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem;">
+                <div style="grid-column: 1 / -1; text-align: center; color: #94A3B8; padding: 2rem 0;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+                    Cargando tasas...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjeta 4: Información adicional -->
+    <div class="card" style="background: rgba(59, 130, 246, 0.05); border-color: rgba(59, 130, 246, 0.2); margin-top: 1rem;">
+        <div style="display: flex; align-items: flex-start; gap: 1rem;">
+            <div style="flex-shrink: 0; width: 3rem; height: 3rem; background: rgba(59, 130, 246, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #60A5FA;">
+                <i class="fas fa-lightbulb"></i>
+            </div>
+            <div>
+                <h4 style="color: #60A5FA; margin-bottom: 0.25rem; font-size: 1rem;">
+                    <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>Como funciona?
+                </h4>
+                <p style="color: #94A3B8; font-size: 0.9rem; margin: 0;">
+                    Las tasas de cambio se actualizan automaticamente cada hora. 
+                    Puedes cambiar tu moneda predeterminada para ver todos tus 
+                    movimientos en la moneda que prefieras. Los reportes y graficos 
+                    se adaptaran a tu seleccion.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjeta 5: Agradecimiento a la API (al final) -->
+    <div class="card" style="background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2); margin-top: 1.5rem; padding: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; justify-content: center;">
+            <div style="display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 280px;">
+                <!-- Logo de Exchange Rate API -->
+                <div id="apiLogo" style="flex-shrink: 0; background: #1E293B; border-radius: 12px; padding: 0.5rem 1rem; display: flex; align-items: center; gap: 0.75rem; border: 1px solid #334155;">
+                    <svg width="36" height="36" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="40" height="40" rx="8" fill="#2563EB"/>
+                        <path d="M12 20L17 15L22 20L27 15" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 25L17 20L22 25L27 20" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="12" cy="15" r="1.5" fill="white"/>
+                        <circle cx="17" cy="20" r="1.5" fill="white"/>
+                        <circle cx="22" cy="15" r="1.5" fill="white"/>
+                        <circle cx="27" cy="20" r="1.5" fill="white"/>
+                        <circle cx="12" cy="25" r="1.5" fill="white"/>
+                        <circle cx="17" cy="25" r="1.5" fill="white"/>
+                        <circle cx="22" cy="25" r="1.5" fill="white"/>
+                        <circle cx="27" cy="25" r="1.5" fill="white"/>
+                    </svg>
+                    <div>
+                        <div id="apiTitle" style="font-weight: 700; font-size: 0.85rem; color: #F1F5F9;">Exchange Rate API</div>
+                        <div id="apiSubtitle" style="font-size: 0.65rem; color: #94A3B8;">Tasas de cambio en tiempo real</div>
+                    </div>
+                </div>
+                
+                <div style="flex: 1; text-align: center;">
+                    <p style="color: #10B981; margin: 0; font-size: 0.95rem; font-weight: 500;">
+                        Gracias a Exchange Rate API por proporcionar datos de conversion en tiempo real
+                    </p>
+                    <p style="color: #94A3B8; font-size: 0.8rem; margin: 0.25rem 0 0 0;">
+                        <i class="fas fa-check-circle" style="color: #10B981;"></i>
+                        Datos actualizados cada hora  •  Gratuito para uso personal
+                    </p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                <a href="https://www.exchangerate-api.com/" target="_blank" 
+                   style="background: rgba(16, 185, 129, 0.15); color: #10B981; padding: 0.4rem 1.2rem; border-radius: 0.5rem; text-decoration: none; font-size: 0.8rem; font-weight: 500; transition: all 0.3s ease; border: 1px solid rgba(16, 185, 129, 0.2);"
+                   onmouseover="this.style.background='rgba(16, 185, 129, 0.25)'"
+                   onmouseout="this.style.background='rgba(16, 185, 129, 0.15)'">
+                    <i class="fas fa-external-link-alt"></i> Visitar API
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function saveCurrency() {
+    const currency = document.getElementById('defaultCurrency').value;
+    
+    try {
+        const response = await fetch('/cambiar-divisa', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ currency: currency })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            if (typeof showToast === 'function') {
+                showToast('Moneda guardada correctamente', 'success');
+            } else {
+                alert('Moneda guardada correctamente');
+            }
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            if (typeof showToast === 'function') {
+                showToast('Error al guardar la moneda', 'error');
+            } else {
+                alert('Error al guardar la moneda');
+            }
+        }
+    } catch (error) {
+        if (typeof showToast === 'function') {
+            showToast('Error de conexion', 'error');
+        } else {
+            alert('Error de conexion');
+        }
+    }
+}
+
+async function convertCurrency() {
+    const amount = document.getElementById('amount').value;
+    const from = document.getElementById('fromCurrency').value;
+    const to = document.getElementById('toCurrency').value;
+    
+    if (!amount || amount <= 0) {
+        if (typeof showToast === 'function') {
+            showToast('Ingresa una cantidad valida', 'warning');
+        } else {
+            alert('Ingresa una cantidad valida');
+        }
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/convert-currency', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                amount: parseFloat(amount),
+                from_currency: from,
+                to_currency: to
+            })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const resultDiv = document.getElementById('result');
+            const resultSpan = document.getElementById('conversionResult');
+            resultSpan.textContent = data.amount + ' ' + data.from_currency + ' = ' + data.converted_amount.toFixed(2) + ' ' + data.to_currency;
+            resultDiv.style.display = 'block';
+        } else {
+            if (typeof showToast === 'function') {
+                showToast('Error al convertir', 'error');
+            } else {
+                alert('Error al convertir');
+            }
+        }
+    } catch (error) {
+        if (typeof showToast === 'function') {
+            showToast('Error de conexion', 'error');
+        } else {
+            alert('Error de conexion');
+        }
+    }
+}
+
+async function loadExchangeRates() {
+    const container = document.getElementById('exchangeRates');
+    container.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; color: #94A3B8; padding: 2rem 0;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+            Cargando tasas...
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/api/exchange-rates?base=USD');
+        const data = await response.json();
+        
+        if (data.success) {
+            const rates = data.rates;
+            const commonCodes = ['USD', 'EUR', 'MXN', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'BRL', 'ARS'];
+            
+            let html = '';
+            for (const code of commonCodes) {
+                if (rates[code]) {
+                    const isActive = code === '{{ user_currency }}';
+                    html += `
+                        <div style="background: #1E293B; padding: 0.75rem; border-radius: 0.75rem; text-align: center; border: 2px solid ${isActive ? '#3B82F6' : 'transparent'}; transition: all 0.3s ease;"
+                             onmouseover="this.style.borderColor='#3B82F6'"
+                             onmouseout="this.style.borderColor='${isActive ? '#3B82F6' : 'transparent'}'">
+                            <div style="font-weight: 700; font-size: 1.1rem; color: #F1F5F9;">${code}</div>
+                            <div style="font-size: 0.85rem; color: #94A3B8; margin-top: 0.25rem;">${rates[code].toFixed(4)}</div>
+                            ${isActive ? '<div style="font-size: 0.7rem; color: #3B82F6; margin-top: 0.25rem;"><i class="fas fa-check-circle"></i> Activa</div>' : ''}
+                        </div>
+                    `;
+                }
+            }
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; color: #F87171; padding: 2rem 0;">
+                    <i class="fas fa-exclamation-circle" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+                    Error al cargar tasas
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; color: #F87171; padding: 2rem 0;">
+                <i class="fas fa-exclamation-circle" style="font-size: 1.5rem; margin-right: 0.5rem;"></i>
+                Error de conexion
+            </div>
+        `;
+    }
+}
+
+// Cargar tasas al inicio
+document.addEventListener('DOMContentLoaded', function() {
+    loadExchangeRates();
+    
+    // Auto-convertir al cambiar valores
+    document.getElementById('amount').addEventListener('input', convertCurrency);
+    document.getElementById('fromCurrency').addEventListener('change', convertCurrency);
+    document.getElementById('toCurrency').addEventListener('change', convertCurrency);
+});
+
+// Estilos para modo claro
+document.addEventListener('DOMContentLoaded', function() {
+    const updateStyles = () => {
+        const isLight = document.body.getAttribute('data-theme') === 'light';
+        
+        // Actualizar titulo "Divisas" y el mundo (globo)
+        const title = document.getElementById('divisasTitle');
+        const globe = document.getElementById('globeIcon');
+        if (title) {
+            title.style.color = isLight ? '#1E293B' : '#FFFFFF';
+            title.style.textShadow = isLight ? '0 1px 2px rgba(0,0,0,0.1)' : '0 2px 4px rgba(0,0,0,0.3)';
+        }
+        if (globe) {
+            globe.style.color = isLight ? '#1E293B' : '#FFFFFF';
+        }
+        
+        // Actualizar selects e inputs
+        document.querySelectorAll('select, input').forEach(el => {
+            if (isLight) {
+                el.style.background = '#FFFFFF';
+                el.style.color = '#1E293B';
+                el.style.borderColor = '#CBD5E1';
+            } else {
+                el.style.background = '#1E293B';
+                el.style.color = '#F1F5F9';
+                el.style.borderColor = '#334155';
+            }
+        });
+        
+        // Actualizar tarjetas de tasas
+        document.querySelectorAll('#exchangeRates > div').forEach(el => {
+            if (isLight) {
+                el.style.background = '#F8FAFC';
+            } else {
+                el.style.background = '#1E293B';
+            }
+        });
+        
+        // Actualizar resultado
+        const resultDiv = document.getElementById('result');
+        if (resultDiv) {
+            if (isLight) {
+                resultDiv.style.background = 'rgba(59, 130, 246, 0.05)';
+                resultDiv.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+            } else {
+                resultDiv.style.background = 'rgba(59, 130, 246, 0.1)';
+                resultDiv.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+            }
+        }
+        
+        // Actualizar texto de resultado
+        const resultSpan = document.getElementById('conversionResult');
+        if (resultSpan) {
+            if (isLight) {
+                resultSpan.style.color = '#1E293B';
+            } else {
+                resultSpan.style.color = '#F1F5F9';
+            }
+        }
+        
+        // Actualizar logo de la API en modo claro
+        const apiLogo = document.getElementById('apiLogo');
+        const apiTitle = document.getElementById('apiTitle');
+        const apiSubtitle = document.getElementById('apiSubtitle');
+        if (apiLogo) {
+            if (isLight) {
+                apiLogo.style.background = '#F8FAFC';
+                apiLogo.style.borderColor = '#E2E8F0';
+            } else {
+                apiLogo.style.background = '#1E293B';
+                apiLogo.style.borderColor = '#334155';
+            }
+        }
+        if (apiTitle) {
+            apiTitle.style.color = isLight ? '#1E293B' : '#F1F5F9';
+        }
+        if (apiSubtitle) {
+            apiSubtitle.style.color = isLight ? '#64748B' : '#94A3B8';
+        }
+    };
+    
+    // Aplicar al cargar
+    updateStyles();
+    
+    // Observar cambios en el tema
+    const observer = new MutationObserver(() => {
+        updateStyles();
+    });
+    observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['data-theme']
+    });
+});
+</script>
+
+<!-- Estilos adicionales para el modo oscuro/claro -->
+<style>
+    body[data-theme="light"] .card {
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1px solid #E2E8F0 !important;
+    }
+    
+    body[data-theme="light"] .card p {
+        color: #475569 !important;
+    }
+    
+    body[data-theme="light"] .card h4 {
+        color: #1E293B !important;
+    }
+    
+    body[data-theme="light"] #exchangeRates > div {
+        background: #F8FAFC !important;
+        border-color: #E2E8F0 !important;
+    }
+    
+    body[data-theme="light"] #exchangeRates > div:hover {
+        border-color: #3B82F6 !important;
+    }
+    
+    body[data-theme="light"] #exchangeRates > div div[style*="font-weight: 700"] {
+        color: #1E293B !important;
+    }
+    
+    body[data-theme="light"] #exchangeRates > div div[style*="font-size: 0.85rem"] {
+        color: #64748B !important;
+    }
+    
+    body[data-theme="light"] #result {
+        background: rgba(59, 130, 246, 0.05) !important;
+        border-color: rgba(59, 130, 246, 0.2) !important;
+    }
+    
+    body[data-theme="light"] #conversionResult {
+        color: #1E293B !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(59, 130, 246, 0.05)"] {
+        background: rgba(59, 130, 246, 0.05) !important;
+        border-color: rgba(59, 130, 246, 0.15) !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(59, 130, 246, 0.05)"] h4 {
+        color: #2563EB !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(59, 130, 246, 0.05)"] p {
+        color: #475569 !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(16, 185, 129, 0.05)"] {
+        background: rgba(16, 185, 129, 0.05) !important;
+        border-color: rgba(16, 185, 129, 0.15) !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(16, 185, 129, 0.05)"] p {
+        color: #065F46 !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(16, 185, 129, 0.05)"] a {
+        color: #059669 !important;
+        border-color: rgba(5, 150, 105, 0.2) !important;
+    }
+    
+    body[data-theme="light"] .card[style*="background: rgba(16, 185, 129, 0.05)"] a:hover {
+        background: rgba(5, 150, 105, 0.15) !important;
+    }
+</style>
+{% endblock %}

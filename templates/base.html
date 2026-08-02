@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinanTrack - Control de Gastos Personales</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-container">
+        <!-- Logo -->
+        <a
+          href="{{ url_for('dashboard') if session.user_id else url_for('home') }}"
+          class="nav-brand"
+        >
+          <span class="logo-icon">🦊</span>
+          <span class="logo-text">FinanTrack</span>
+        </a>
+
+        <!-- Botón hamburguesa para móvil -->
+        <button class="mobile-menu-btn" id="mobileMenuBtn">
+          <i class="fas fa-bars"></i>
+        </button>
+
+        <!-- Menú de navegación -->
+        <div class="nav-menu" id="navMenu">
+          <div class="nav-links">
+            <!-- Botón de tema -->
+            <button id="themeToggle" class="theme-btn">
+              <i class="fas fa-moon"></i>
+            </button>
+
+            {% if session.user_id %}
+            <!-- Enlaces principales -->
+            <a href="{{ url_for('dashboard') }}" class="nav-link">
+              <i class="fas fa-chart-line"></i>
+              <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('agregar_movimiento') }}" class="nav-link">
+              <i class="fas fa-plus-circle"></i>
+              <span>Movimiento</span>
+            </a>
+            <a href="{{ url_for('listar_metas') }}" class="nav-link">
+              <i class="fas fa-bullseye"></i>
+              <span>Metas</span>
+            </a>
+            <a href="{{ url_for('listar_presupuestos') }}" class="nav-link">
+              <i class="fas fa-chart-simple"></i>
+              <span>Presupuestos</span>
+            </a>
+            <a href="{{ url_for('listar_recordatorios') }}" class="nav-link">
+              <i class="fas fa-calendar-alt"></i>
+              <span>Recordatorios</span>
+            </a>
+            <a
+              href="{{ url_for('listar_notificaciones') }}"
+              class="nav-link notif-link"
+            >
+              <i class="fas fa-bell"></i>
+              <span>Notificaciones</span>
+              <span id="notifBadge" class="notif-badge" style="display: none"
+                >0</span
+              >
+            </a>
+            <a href="{{ url_for('configuracion_divisas') }}" class="nav-link">
+              <i class="fas fa-exchange-alt"></i>
+              <span>Divisas</span>
+            </a>
+            <a href="{{ url_for('fred_dashboard') }}" class="nav-link">
+              <i class="fas fa-chart-bar"></i>
+              <span>FRED</span>
+            </a>
+            <!-- Separador -->
+            <span class="nav-divider"></span>
+
+            <!-- Usuario y cierre de sesión -->
+            <div class="user-controls">
+              <span class="user-welcome">
+                <i class="fas fa-user-circle"></i>
+                <span>{{ session.user_name }}</span>
+              </span>
+              <a href="{{ url_for('logout') }}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Salir</span>
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %} {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock %}
+    </div>
+
+    <script>
+      // ==================== MENÚ MÓVIL ====================
+      const mobileMenuBtn = document.getElementById("mobileMenuBtn");
+      const navMenu = document.getElementById("navMenu");
+
+      if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener("click", function () {
+          navMenu.classList.toggle("active");
+          const icon = mobileMenuBtn.querySelector("i");
+          if (navMenu.classList.contains("active")) {
+            icon.classList.remove("fa-bars");
+            icon.classList.add("fa-times");
+          } else {
+            icon.classList.remove("fa-times");
+            icon.classList.add("fa-bars");
+          }
+        });
+      }
+
+      // Cerrar menú al hacer clic en un enlace (móvil)
+      document.querySelectorAll(".nav-link, .logout-btn").forEach((link) => {
+        link.addEventListener("click", () => {
+          if (window.innerWidth <= 768) {
+            navMenu.classList.remove("active");
+            const icon = mobileMenuBtn.querySelector("i");
+            if (icon) {
+              icon.classList.remove("fa-times");
+              icon.classList.add("fa-bars");
+            }
+          }
+        });
+      });
+
+      // ==================== TEMA OSCURO/CLARO ====================
+      function setTheme(theme) {
+        document.body.setAttribute("data-theme", theme);
+        localStorage.setItem("finantrack_theme", theme);
+        const icon = document.querySelector("#themeToggle i");
+        if (icon) {
+          if (theme === "dark") {
+            icon.className = "fas fa-moon";
+          } else {
+            icon.className = "fas fa-sun";
+          }
+        }
+      }
+
+      const savedTheme = localStorage.getItem("finantrack_theme");
+      if (savedTheme) {
+        setTheme(savedTheme);
+      } else {
+        setTheme("dark");
+      }
+
+      const themeToggle = document.getElementById("themeToggle");
+      if (themeToggle) {
+        themeToggle.addEventListener("click", function () {
+          const currentTheme = document.body.getAttribute("data-theme");
+          const newTheme = currentTheme === "dark" ? "light" : "dark";
+          setTheme(newTheme);
+          fetch("/cambiar-tema", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tema: newTheme }),
+          }).catch((e) => console.log("Error:", e));
+        });
+      }
+
+      // ==================== NOTIFICACIONES ====================
+      function actualizarBadge() {
+        fetch("/api/notificaciones/no-leidas")
+          .then((response) => response.json())
+          .then((data) => {
+            const badge = document.getElementById("notifBadge");
+            if (badge) {
+              if (data.total > 0) {
+                badge.textContent = data.total > 9 ? "9+" : data.total;
+                badge.style.display = "inline-flex";
+              } else {
+                badge.style.display = "none";
+              }
+            }
+          })
+          .catch((e) => console.log("Error:", e));
+      }
+
+      actualizarBadge();
+      setInterval(actualizarBadge, 30000);
+
+      // Auto cerrar alertas
+      setTimeout(function () {
+        const alerts = document.querySelectorAll(".alert");
+        alerts.forEach((alert) => {
+          alert.style.opacity = "0";
+          setTimeout(() => alert.remove(), 300);
+        });
+      }, 5000);
+    </script>
+
+    <!-- ==================== TOAST NOTIFICATIONS ==================== -->
+    <script>
+      // Función global para mostrar notificaciones toast
+      function showToast(message, type = "info") {
+        const colors = {
+          success: "bg-green-500",
+          error: "bg-red-500",
+          warning: "bg-yellow-500",
+          info: "bg-blue-500",
+        };
+
+        const icons = {
+          success: "fas fa-check-circle",
+          error: "fas fa-exclamation-circle",
+          warning: "fas fa-exclamation-triangle",
+          info: "fas fa-info-circle",
+        };
+
+        const toast = document.createElement("div");
+        toast.className = `fixed top-20 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full opacity-0 max-w-sm`;
+        toast.innerHTML = `<i class="${icons[type] || icons.info} mr-2"></i> ${message}`;
+        document.body.appendChild(toast);
+
+        // Animación de entrada
+        setTimeout(() => {
+          toast.style.transform = "translateX(0)";
+          toast.style.opacity = "1";
+        }, 100);
+
+        // Animación de salida
+        setTimeout(() => {
+          toast.style.transform = "translateX(100%)";
+          toast.style.opacity = "0";
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      // Hacer la función global
+      window.showToast = showToast;
+    </script>
+  </body>
+</html>

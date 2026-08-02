@@ -1,0 +1,500 @@
+{% extends 'base.html' %} {% block content %}
+<div class="dashboard-header">
+  <div class="zorro-welcome">
+    <div class="zorro-avatar">🦊</div>
+    <div>
+      <h1 class="dashboard-title">¡Hola, {{ nombre }}!</h1>
+      <p class="dashboard-subtitle">
+        Tu zorro financiero te ayuda a controlar tus gastos
+      </p>
+    </div>
+    <div class="header-actions">
+      <a href="{{ url_for('agregar_movimiento') }}" class="btn-add-large">
+        <i class="fas fa-plus"></i>
+        Nuevo Movimiento
+      </a>
+      <div class="report-buttons">
+        <a href="{{ url_for('reporte_pdf') }}" class="btn-pdf">
+          <i class="fas fa-file-pdf"></i>
+          <span>PDF</span>
+        </a>
+        <a href="{{ url_for('reporte_excel') }}" class="btn-excel">
+          <i class="fas fa-file-excel"></i>
+          <span>Excel</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tarjetas principales -->
+<div class="stats-grid">
+  <div class="stat-card income">
+    <h3>Ingresos del mes</h3>
+    <div class="amount">+${{ "%.2f"|format(total_ingresos) }}</div>
+    <small
+      >vs mes anterior: {% if variacion_ingresos > 0 %}
+      <span style="color: #34d399"
+        >+{{ "%.1f"|format(variacion_ingresos) }}%</span
+      >
+      {% elif variacion_ingresos < 0 %}
+      <span style="color: #f87171"
+        >{{ "%.1f"|format(variacion_ingresos) }}%</span
+      >
+      {% else %}<span>0%</span>{% endif %}
+    </small>
+  </div>
+  <div class="stat-card expense">
+    <h3>Gastos del mes</h3>
+    <div class="amount">-${{ "%.2f"|format(total_gastos) }}</div>
+    <small
+      >vs mes anterior: {% if variacion_gastos < 0 %}
+      <span style="color: #34d399">{{ "%.1f"|format(variacion_gastos) }}%</span>
+      {% elif variacion_gastos > 0 %}
+      <span style="color: #f87171"
+        >+{{ "%.1f"|format(variacion_gastos) }}%</span
+      >
+      {% else %}<span>0%</span>{% endif %}
+    </small>
+  </div>
+  <div class="stat-card balance">
+    <h3>Balance neto</h3>
+    <div class="amount">${{ "%.2f"|format(balance) }}</div>
+    <small>Ahorro del mes: ${{ "%.2f"|format(ahorro) }}</small>
+  </div>
+</div>
+
+<!-- Métricas rápidas -->
+<div class="quick-stats">
+  <div class="quick-stat">
+    <div>
+      <small>Gasto diario</small>
+      <strong>${{ "%.2f"|format(gasto_diario_promedio) }}</strong>
+    </div>
+  </div>
+  <div class="quick-stat">
+    <div>
+      <small>Transacciones</small>
+      <strong>{{ total_transacciones }}</strong>
+    </div>
+  </div>
+  <div class="quick-stat">
+    <div>
+      <small>Meta ahorro</small>
+      <strong>{{ "%.0f"|format(porcentaje_meta) }}%</strong>
+    </div>
+  </div>
+  <div class="quick-stat">
+    <div>
+      <small>Consejo</small>
+      <strong
+        >{% if balance > 50 %}Ahorrando{% elif balance < 0 %}Cuidado{% else
+        %}Equilibrado{% endif %}</strong
+      >
+    </div>
+  </div>
+</div>
+
+<!-- Gráficos principales -->
+<div class="charts-row">
+  <div class="card chart-card">
+    <h3>Evolución mensual</h3>
+    <div class="chart-container">
+      <canvas id="evolutionChart"></canvas>
+    </div>
+  </div>
+  <div class="card chart-card">
+    <h3>Gastos por categoría</h3>
+    <div class="chart-container">
+      <canvas id="categoryChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Gráficos adicionales -->
+<div class="charts-row">
+  <div class="card chart-card">
+    <h3>Ingresos vs Gastos Mensuales</h3>
+    <div class="chart-container">
+      <canvas id="comparisonChart"></canvas>
+    </div>
+  </div>
+  <div class="card chart-card">
+    <h3>Evolución del Ahorro</h3>
+    <div class="chart-container">
+      <canvas id="savingsChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Gastos hormiga -->
+<div class="card">
+  <h3>Gastos Hormiga (menos de $100)</h3>
+  <div id="hormiga-container" class="hormiga-grid">
+    <p class="text-center" style="color: #94a3b8">Cargando datos...</p>
+  </div>
+</div>
+
+<!-- Ingresos por categoría -->
+<div class="card">
+  <h3>Ingresos por categoría</h3>
+  <div class="category-grid">
+    {% if ingresos_por_categoria %} {% for ingreso in ingresos_por_categoria %}
+    <div class="category-item-card">
+      <div class="category-info">
+        <span class="category-name">{{ ingreso.categoria_nombre }}</span>
+        <span class="category-amount" style="color: #34d399"
+          >+${{ "%.2f"|format(ingreso.total) }}</span
+        >
+      </div>
+      <div class="category-bar">
+        <div
+          class="category-bar-fill income-fill"
+          style="width: {{ ingreso.porcentaje }}%;"
+        ></div>
+      </div>
+    </div>
+    {% endfor %} {% else %}
+    <p class="text-center" style="color: #94a3b8">
+      No hay ingresos registrados
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Gastos por categoría -->
+<div class="card">
+  <h3>Gastos por categoría</h3>
+  <div class="category-grid">
+    {% if gastos_por_categoria %} {% for gasto in gastos_por_categoria %}
+    <div class="category-item-card">
+      <div class="category-info">
+        <span class="category-name">{{ gasto.categoria_nombre }}</span>
+        <span class="category-amount" style="color: #f87171"
+          >-${{ "%.2f"|format(gasto.total) }}</span
+        >
+      </div>
+      <div class="category-bar">
+        <div
+          class="category-bar-fill expense-fill"
+          style="width: {{ gasto.porcentaje }}%;"
+        ></div>
+      </div>
+      <span class="category-percentage"
+        >{{ "%.1f"|format(gasto.porcentaje) }}%</span
+      >
+    </div>
+    {% endfor %} {% else %}
+    <p class="text-center" style="color: #94a3b8">No hay gastos registrados</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tus mayores gastos y últimos movimientos -->
+<div class="two-columns">
+  <div class="card">
+    <h3>Tus mayores gastos</h3>
+    {% if top_categorias %} {% for cat in top_categorias %}
+    <div class="top-category">
+      <div class="top-category-info">
+        <span>{{ cat.categoria_nombre }}</span>
+        <span class="top-category-amount">${{ "%.2f"|format(cat.total) }}</span>
+      </div>
+      <div class="category-bar">
+        <div
+          class="category-bar-fill"
+          style="width: {{ cat.porcentaje }}%; background: linear-gradient(90deg, #F59E0B, #EF4444);"
+        ></div>
+      </div>
+    </div>
+    {% endfor %} {% else %}
+    <p class="text-center" style="color: #94a3b8">
+      Aún no hay gastos registrados
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      "
+    >
+      <h3 style="margin-bottom: 0">Últimos movimientos</h3>
+      <a href="{{ url_for('agregar_movimiento') }}" class="btn-add-small">
+        <i class="fas fa-plus"></i> Nuevo
+      </a>
+    </div>
+
+    {% if movimientos %}
+    <div class="movements-list">
+      {% for m in movimientos %}
+      <div class="movement-item">
+        <div class="movement-details">
+          <div class="movement-desc">
+            {{ m.descripcion or m.categoria_nombre }}
+          </div>
+          <div class="movement-meta">
+            {{ m.fecha }} • {{ m.categoria_nombre }}
+          </div>
+        </div>
+        <div
+          class="movement-amount"
+          style="color: {{ '#34D399' if m.tipo == 'ingreso' else '#F87171' }}"
+        >
+          {{ '+' if m.tipo == 'ingreso' else '-' }}${{ "%.2f"|format(m.monto) }}
+        </div>
+        <div class="movement-actions">
+          <a
+            href="{{ url_for('editar_movimiento', id=m.id) }}"
+            class="btn-edit-sm"
+            >Editar</a
+          >
+          <a
+            href="{{ url_for('eliminar_movimiento', id=m.id) }}"
+            class="btn-delete-sm"
+            onclick="return confirm('¿Eliminar?');"
+            >Eliminar</a
+          >
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-center" style="color: #94a3b8">
+      No hay movimientos registrados
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Consejo del zorro -->
+<div
+  class="zorro-tip"
+  style="border-left: 4px solid {{ consejo_zorro.color }};"
+>
+  <span style="font-size: 2rem">{{ consejo_zorro.icono }}</span>
+  <div style="flex: 1">
+    <h3 style="margin-bottom: 0.25rem">{{ consejo_zorro.titulo }}</h3>
+    <p style="color: #94a3b8; margin-bottom: 0">{{ consejo_zorro.mensaje }}</p>
+    {% if consejo_zorro.accion %}
+    <a
+      href="{{ url_for(consejo_zorro.accion) }}"
+      style="display: inline-block; margin-top: 0.75rem; background: {{ consejo_zorro.color }}; color: white; padding: 0.4rem 1rem; border-radius: 0.5rem; text-decoration: none; font-size: 0.8rem;"
+      >{{ consejo_zorro.texto_boton }}</a
+    >
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  // ==================== GRÁFICA 1: Evolución mensual ====================
+  const ctx1 = document.getElementById('evolutionChart').getContext('2d');
+  new Chart(ctx1, {
+      type: 'line',
+      data: {
+          labels: {{ meses_nombres|tojson }},
+          datasets: [
+              {
+                  label: 'Ingresos',
+                  data: {{ ingresos_mensuales|tojson }},
+                  borderColor: '#34D399',
+                  backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: '#34D399',
+                  pointBorderColor: '#fff',
+                  pointRadius: 4,
+                  pointHoverRadius: 6
+              },
+              {
+                  label: 'Gastos',
+                  data: {{ gastos_mensuales|tojson }},
+                  borderColor: '#F87171',
+                  backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                  fill: true,
+                  tension: 0.4,
+                  pointBackgroundColor: '#F87171',
+                  pointBorderColor: '#fff',
+                  pointRadius: 4,
+                  pointHoverRadius: 6
+              }
+          ]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+              legend: {
+                  position: 'top',
+                  labels: { color: '#CBD5E1', font: { size: 11, weight: 'bold' } }
+              },
+              tooltip: {
+                  callbacks: {
+                      label: function(ctx) {
+                          return ctx.dataset.label + ': $' + ctx.raw.toFixed(2);
+                      }
+                  }
+              }
+          },
+          scales: {
+              y: {
+                  ticks: { color: '#94A3B8', callback: function(v) { return '$' + v; } },
+                  grid: { color: 'rgba(148, 163, 184, 0.1)' }
+              },
+              x: {
+                  ticks: { color: '#94A3B8' },
+                  grid: { color: 'rgba(148, 163, 184, 0.1)' }
+              }
+          }
+      }
+  });
+
+  // ==================== GRÁFICA 2: Gastos por categoría ====================
+  const ctx2 = document.getElementById('categoryChart').getContext('2d');
+  new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+          labels: {{ categorias_nombres|tojson }},
+          datasets: [{
+              data: {{ categorias_totales|tojson }},
+              backgroundColor: ['#34D399', '#F87171', '#60A5FA', '#FBBF24', '#A78BFA', '#F472B6', '#2DD4BF', '#FB923C', '#818CF8', '#F43F5E'],
+              borderWidth: 0,
+              hoverOffset: 10
+          }]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+              legend: {
+                  position: 'right',
+                  labels: { color: '#CBD5E1', font: { size: 10 } }
+              },
+              tooltip: {
+                  callbacks: {
+                      label: function(ctx) {
+                          const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                          const pct = ((ctx.raw / total) * 100).toFixed(1);
+                          return `${ctx.label}: $${ctx.raw.toFixed(2)} (${pct}%)`;
+                      }
+                  }
+              }
+          }
+      }
+  });
+
+  // ==================== GRÁFICA 3: Comparación Ingresos vs Gastos ====================
+  const ctx3 = document.getElementById('comparisonChart').getContext('2d');
+  let comparisonChart = new Chart(ctx3, {
+      type: 'bar',
+      data: {
+          labels: [],
+          datasets: [
+              { label: 'Ingresos', data: [], backgroundColor: '#34D399', borderRadius: 8 },
+              { label: 'Gastos', data: [], backgroundColor: '#F87171', borderRadius: 8 }
+          ]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+              legend: { labels: { color: '#CBD5E1', font: { size: 11 } } },
+              tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': $' + ctx.raw.toFixed(2); } } }
+          },
+          scales: {
+              y: { ticks: { color: '#94A3B8', callback: function(v) { return '$' + v; } }, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+              x: { ticks: { color: '#94A3B8' }, grid: { display: false } }
+          }
+      }
+  });
+
+  // ==================== GRÁFICA 4: Evolución del Ahorro ====================
+  const ctx4 = document.getElementById('savingsChart').getContext('2d');
+  let savingsChart = new Chart(ctx4, {
+      type: 'line',
+      data: {
+          labels: [],
+          datasets: [{
+              label: 'Ahorro Acumulado',
+              data: [],
+              borderColor: '#60A5FA',
+              backgroundColor: 'rgba(96, 165, 250, 0.1)',
+              fill: true,
+              tension: 0.4,
+              pointBackgroundColor: '#60A5FA',
+              pointBorderColor: '#fff',
+              pointRadius: 4
+          }]
+      },
+      options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+              tooltip: { callbacks: { label: function(ctx) { return 'Ahorro: $' + ctx.raw.toFixed(2); } } },
+              legend: { labels: { color: '#CBD5E1' } }
+          },
+          scales: {
+              y: { ticks: { color: '#94A3B8', callback: function(v) { return '$' + v; } }, grid: { color: 'rgba(148, 163, 184, 0.1)' } },
+              x: { ticks: { color: '#94A3B8' }, grid: { color: 'rgba(148, 163, 184, 0.1)' } }
+          }
+      }
+  });
+
+  // ==================== CARGAR DATOS DE GRÁFICAS ADICIONALES ====================
+  fetch('/api/datos-graficos')
+      .then(response => response.json())
+      .then(data => {
+          comparisonChart.data.labels = data.meses;
+          comparisonChart.data.datasets[0].data = data.ingresos_mensuales;
+          comparisonChart.data.datasets[1].data = data.gastos_mensuales;
+          comparisonChart.update();
+
+          savingsChart.data.labels = data.meses;
+          savingsChart.data.datasets[0].data = data.evolucion_ahorro;
+          savingsChart.update();
+
+          const hormigaContainer = document.getElementById('hormiga-container');
+          if (data.gastos_hormiga && data.gastos_hormiga.length > 0) {
+              let html = '';
+              data.gastos_hormiga.forEach(g => {
+                  html += `
+                      <div class="hormiga-item">
+                          <div class="hormiga-info">
+                              <span class="hormiga-categoria">${g.categoria}</span>
+                              <span class="hormiga-frecuencia">${g.frecuencia} veces</span>
+                          </div>
+                          <div class="hormiga-total">$${g.total.toFixed(2)}</div>
+                      </div>
+                  `;
+              });
+              hormigaContainer.innerHTML = html;
+          } else {
+              hormigaContainer.innerHTML = '<p class="text-center" style="color: #94A3B8;">No hay gastos pequeños registrados</p>';
+          }
+      })
+      .catch(error => {
+          console.error('Error cargando datos:', error);
+          document.getElementById('hormiga-container').innerHTML = '<p class="text-center" style="color: #F87171;">Error cargando datos</p>';
+      });
+
+  // Efecto de carga en botones de reportes
+  document.querySelectorAll('.btn-pdf, .btn-excel').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+          const originalHtml = this.innerHTML;
+          this.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Generando...';
+          this.style.opacity = '0.7';
+          this.style.pointerEvents = 'none';
+
+          setTimeout(() => {
+              this.innerHTML = originalHtml;
+              this.style.opacity = '1';
+              this.style.pointerEvents = 'auto';
+          }, 2000);
+      });
+  });
+</script>
+{% endblock %}

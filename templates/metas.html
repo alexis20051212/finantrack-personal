@@ -1,0 +1,769 @@
+{% extends 'base.html' %} {% block content %}
+<div class="page-header">
+  <div class="page-header-info">
+    <h1 class="dashboard-title">Metas de Ahorro</h1>
+    <p class="dashboard-subtitle">
+      Define tus objetivos financieros y sigue tu progreso
+    </p>
+  </div>
+
+  <button class="btn-new-meta" onclick="abrirModalMeta()">
+    <i class="fas fa-plus-circle"></i>
+    <span>Nueva Meta</span>
+  </button>
+</div>
+
+<div class="metas-grid">
+  {% if metas %} {% for meta in metas %}
+  <div class="meta-card">
+    <div class="meta-header">
+      <div class="meta-title">
+        <i class="fas fa-bullseye"></i>
+        <h3>{{ meta.nombre }}</h3>
+      </div>
+      <div class="meta-actions">
+        <button onclick="abrirModalAportar({{ meta.id }})" class="btn-aportar">
+          <i class="fas fa-plus"></i> Aportar
+        </button>
+        <button
+          onclick="eliminarMeta({{ meta.id }})"
+          class="btn-eliminar-meta"
+          onclick="return confirm('¿Eliminar esta meta?');"
+        >
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="meta-progress">
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: {{ meta.porcentaje }}%;"></div>
+      </div>
+      <div class="progress-stats">
+        <span>{{ "%.1f"|format(meta.porcentaje) }}%</span>
+        <span
+          >${{ "%.2f"|format(meta.monto_actual) }} / ${{
+          "%.2f"|format(meta.monto_objetivo) }}</span
+        >
+      </div>
+    </div>
+
+    <div class="meta-info">
+      <div class="info-item">
+        <i class="fas fa-calendar"></i>
+        <span
+          >Fecha límite: {{ meta.fecha_limite.strftime('%d/%m/%Y') if
+          meta.fecha_limite else 'Sin fecha' }}</span
+        >
+      </div>
+      <div class="info-item">
+        <i class="fas fa-clock"></i>
+        <span>{{ meta.dias_restantes|default(0) }} días restantes</span>
+      </div>
+      <div class="info-item">
+        <i class="fas fa-chart-line"></i>
+        <span
+          >Necesitas: ${{ "%.2f"|format(meta.monto_objetivo - meta.monto_actual)
+          }}</span
+        >
+      </div>
+    </div>
+  </div>
+  {% endfor %} {% else %}
+  <div class="empty-state">
+    <i class="fas fa-bullseye"></i>
+    <p>No tienes metas de ahorro</p>
+    <button class="btn-primary-empty" onclick="abrirModalMeta()">
+      Crear mi primera meta
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal Nueva Meta -->
+<div id="modalMeta" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="fas fa-plus-circle"></i>
+        <h2>Nueva Meta de Ahorro</h2>
+      </div>
+      <button class="modal-close" onclick="cerrarModalMeta()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <form method="POST" action="{{ url_for('nueva_meta') }}">
+      <div class="form-card">
+        <div class="form-field">
+          <label class="form-label">
+            <i class="fas fa-tag"></i>
+            Nombre de la meta
+          </label>
+          <input
+            type="text"
+            name="nombre"
+            class="form-input"
+            placeholder="Ej: Viaje a Cancún"
+            required
+          />
+          <span class="form-hint"
+            >Un nombre que te motive a alcanzar esta meta</span
+          >
+        </div>
+      </div>
+
+      <div class="form-row-2cols">
+        <div class="form-card">
+          <div class="form-field">
+            <label class="form-label">
+              <i class="fas fa-dollar-sign"></i>
+              Monto objetivo ($)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              name="monto_objetivo"
+              class="form-input"
+              placeholder="Ej: 10000"
+              required
+            />
+            <span class="form-hint">¿Cuánto dinero necesitas?</span>
+          </div>
+        </div>
+
+        <div class="form-card">
+          <div class="form-field">
+            <label class="form-label">
+              <i class="fas fa-calendar-day"></i>
+              Fecha límite (opcional)
+            </label>
+            <input type="date" name="fecha_limite" class="form-input" />
+            <span class="form-hint">¿Cuándo quieres alcanzar esta meta?</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" onclick="cerrarModalMeta()">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="submit" class="btn-create">
+          <i class="fas fa-save"></i> Crear Meta
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Aportar -->
+<div id="modalAportar" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="fas fa-plus-circle"></i>
+        <h2>Aportar a la meta</h2>
+      </div>
+      <button class="modal-close" onclick="cerrarModalAportar()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <form id="formAportar" method="POST">
+      <div class="form-card">
+        <div class="form-field">
+          <label class="form-label">
+            <i class="fas fa-dollar-sign"></i>
+            Monto a aportar ($)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            name="monto"
+            class="form-input"
+            placeholder="Ej: 500"
+            required
+          />
+          <span class="form-hint">¿Cuánto quieres ahorrar hoy?</span>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <div class="form-field">
+          <label class="form-label">
+            <i class="fas fa-align-left"></i>
+            Descripción (opcional)
+          </label>
+          <input
+            type="text"
+            name="descripcion"
+            class="form-input"
+            placeholder="Ej: Ahorro del mes"
+          />
+          <span class="form-hint">Agrega una nota opcional</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" onclick="cerrarModalAportar()">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+        <button type="submit" class="btn-create">
+          <i class="fas fa-save"></i> Registrar Aportación
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  /* ========== PAGE HEADER ========== */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .page-header-info {
+    flex: 1;
+  }
+
+  /* ========== BOTÓN NUEVA META ========== */
+  .btn-new-meta {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border: none;
+    padding: 0.85rem 1.8rem;
+    border-radius: 2rem;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-new-meta i {
+    font-size: 1.1rem;
+    transition: transform 0.2s ease;
+  }
+
+  .btn-new-meta span {
+    position: relative;
+    z-index: 1;
+  }
+
+  .btn-new-meta:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+  }
+
+  .btn-new-meta:hover i {
+    transform: rotate(90deg);
+  }
+
+  .btn-new-meta::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: left 0.5s ease;
+  }
+
+  .btn-new-meta:hover::before {
+    left: 100%;
+  }
+
+  .btn-new-meta:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  }
+
+  body[data-theme="light"] .btn-new-meta {
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  }
+
+  /* Botón para estado vacío */
+  .btn-primary-empty {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border: none;
+    padding: 0.7rem 1.5rem;
+    border-radius: 2rem;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+  }
+
+  .btn-primary-empty:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  /* ========== METAS GRID ========== */
+  .metas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .meta-card {
+    background: rgba(30, 41, 59, 0.7);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .meta-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.3);
+  }
+
+  body[data-theme="light"] .meta-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e2e8f0;
+  }
+
+  .meta-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .meta-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .meta-title i {
+    font-size: 1.2rem;
+    color: #f59e0b;
+  }
+
+  .meta-title h3 {
+    font-size: 1.1rem;
+    color: #f1f5f9;
+    margin: 0;
+  }
+
+  body[data-theme="light"] .meta-title h3 {
+    color: #1e293b;
+  }
+
+  .meta-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-aportar {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: all 0.2s ease;
+  }
+
+  .btn-aportar:hover {
+    background: #059669;
+    transform: scale(1.02);
+  }
+
+  .btn-eliminar-meta {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-eliminar-meta:hover {
+    background: #dc2626;
+    transform: scale(1.02);
+  }
+
+  /* ========== PROGRESS BAR ========== */
+  .meta-progress {
+    margin: 1rem 0;
+  }
+
+  .progress-bar {
+    background: rgba(51, 65, 85, 0.8);
+    border-radius: 1rem;
+    height: 0.75rem;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-fill {
+    background: linear-gradient(90deg, #10b981, #34d399);
+    height: 100%;
+    border-radius: 1rem;
+    transition: width 0.5s ease;
+  }
+
+  .progress-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+
+  /* ========== META INFO ========== */
+  .meta-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  .info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+
+  /* ========== MODAL ========== */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-content {
+    background: #1e293b;
+    border-radius: 1.5rem;
+    max-width: 550px;
+    width: 90%;
+    margin: 5% auto;
+    overflow: hidden;
+    animation: modalFadeIn 0.3s ease;
+  }
+
+  @keyframes modalFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  body[data-theme="light"] .modal-content {
+    background: #ffffff;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.75rem;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  }
+
+  .modal-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .modal-title i {
+    font-size: 1.5rem;
+    color: white;
+  }
+
+  .modal-title h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+  }
+
+  .modal-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+  }
+
+  .modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+  }
+
+  /* ========== FORMULARIO ========== */
+  .form-card {
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    margin: 1.25rem;
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    transition: all 0.2s ease;
+  }
+
+  body[data-theme="light"] .form-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  body[data-theme="light"] .form-label {
+    color: #334155;
+  }
+
+  .form-input {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: #f1f5f9;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    width: 100%;
+  }
+
+  body[data-theme="light"] .form-input {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  .form-hint {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+  }
+
+  .form-row-2cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1rem 1.25rem 1.5rem;
+    border-top: 1px solid rgba(59, 130, 246, 0.15);
+  }
+
+  .btn-cancel,
+  .btn-create {
+    padding: 0.7rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+  }
+
+  .btn-cancel {
+    background: rgba(100, 116, 139, 0.2);
+    color: #94a3b8;
+  }
+
+  .btn-cancel:hover {
+    background: rgba(100, 116, 139, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .btn-create {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: white;
+  }
+
+  .btn-create:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  body[data-theme="light"] .btn-cancel {
+    background: #e2e8f0;
+    color: #475569;
+  }
+
+  body[data-theme="light"] .btn-cancel:hover {
+    background: #cbd5e1;
+  }
+
+  /* ========== EMPTY STATE ========== */
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 1rem;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state p {
+    color: #94a3b8;
+    margin-bottom: 1rem;
+  }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 768px) {
+    .page-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .page-header-info {
+      text-align: center;
+    }
+
+    .btn-new-meta {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .form-row-2cols {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .metas-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .meta-header {
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+
+    .meta-actions {
+      width: 100%;
+    }
+
+    .btn-aportar,
+    .btn-eliminar-meta {
+      flex: 1;
+      justify-content: center;
+    }
+  }
+</style>
+
+<script>
+  function abrirModalMeta() {
+    document.getElementById("modalMeta").style.display = "block";
+    // Establecer fecha por defecto
+    const hoy = new Date().toISOString().split("T")[0];
+    const fechaInput = document.querySelector(
+      '#modalMeta input[name="fecha_limite"]',
+    );
+    if (fechaInput) fechaInput.value = hoy;
+  }
+
+  function cerrarModalMeta() {
+    document.getElementById("modalMeta").style.display = "none";
+  }
+
+  function abrirModalAportar(metaId) {
+    const form = document.getElementById("formAportar");
+    form.action = `/metas/aportar/${metaId}`;
+    document.getElementById("modalAportar").style.display = "block";
+  }
+
+  function cerrarModalAportar() {
+    document.getElementById("modalAportar").style.display = "none";
+  }
+
+  function eliminarMeta(id) {
+    if (confirm("¿Eliminar esta meta?")) {
+      window.location.href = `/metas/eliminar/${id}`;
+    }
+  }
+
+  window.onclick = function (event) {
+    if (event.target.classList.contains("modal")) {
+      event.target.style.display = "none";
+    }
+  };
+</script>
+{% endblock %}

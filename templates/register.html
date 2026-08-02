@@ -1,0 +1,269 @@
+{% extends 'base.html' %} {% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">
+        <span class="auth-logo-icon">🦊</span>
+        <h2>Crear Cuenta</h2>
+      </div>
+      <p class="auth-subtitle">Comienza a controlar tus finanzas</p>
+    </div>
+
+    <form
+      method="POST"
+      action="{{ url_for('register') }}"
+      class="auth-form"
+      id="registerForm"
+    >
+      <div class="form-group">
+        <label for="nombre">
+          <i class="fas fa-user input-icon"></i>
+          Nombre completo
+        </label>
+        <input
+          type="text"
+          id="nombre"
+          name="nombre"
+          required
+          placeholder="Ej: Juan Pérez"
+          value="{{ request.form.nombre }}"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="email">
+          <i class="fas fa-envelope input-icon"></i>
+          Correo electrónico
+        </label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          required
+          placeholder="tu@email.com"
+          value="{{ request.form.email }}"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="telefono">
+          <i class="fas fa-phone input-icon"></i>
+          Teléfono (opcional)
+        </label>
+        <input
+          type="tel"
+          id="telefono"
+          name="telefono"
+          placeholder="Ej: 4491234567"
+          value="{{ request.form.telefono }}"
+        />
+        <small
+          style="
+            color: #64748b;
+            font-size: 0.7rem;
+            display: block;
+            margin-top: 0.25rem;
+          "
+        >
+          Solo números, sin espacios ni guiones
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label for="password">
+          <i class="fas fa-lock input-icon"></i>
+          Contraseña
+        </label>
+        <div class="password-wrapper">
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            placeholder="Mínimo 8 caracteres"
+          />
+          <button type="button" class="toggle-password" data-target="password">
+            <i class="far fa-eye"></i>
+          </button>
+        </div>
+        <div class="password-strength">
+          <div class="strength-meter" id="strength-meter"></div>
+          <div class="password-requirements" id="password-requirements">
+            <span id="req-length" class="invalid"
+              ><i class="fas fa-times-circle"></i> 8 caracteres</span
+            >
+            <span id="req-upper" class="invalid"
+              ><i class="fas fa-times-circle"></i> Mayúscula</span
+            >
+            <span id="req-special" class="invalid"
+              ><i class="fas fa-times-circle"></i> Carácter especial</span
+            >
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_password">
+          <i class="fas fa-check-circle input-icon"></i>
+          Confirmar contraseña
+        </label>
+        <div class="password-wrapper">
+          <input
+            type="password"
+            id="confirm_password"
+            name="confirm_password"
+            required
+            placeholder="Repite tu contraseña"
+          />
+          <button
+            type="button"
+            class="toggle-password"
+            data-target="confirm_password"
+          >
+            <i class="far fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="auth-btn" id="submitBtn" disabled>
+        <i class="fas fa-check-circle"></i>
+        Registrarse
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>
+        ¿Ya tienes cuenta?
+        <a href="{{ url_for('login') }}">Inicia sesión aquí</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="auth-features">
+    <div class="feature-item">
+      <i class="fas fa-chart-line feature-icon"></i>
+      <div>
+        <h4>Visualiza tus finanzas</h4>
+        <p>Gráficas claras de tus ingresos y gastos</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <i class="fas fa-bullseye feature-icon"></i>
+      <div>
+        <h4>Metas de ahorro</h4>
+        <p>Establece y alcanza tus objetivos</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <i class="fas fa-shield-alt feature-icon"></i>
+      <div>
+        <h4>Seguridad garantizada</h4>
+        <p>Tus datos financieros protegidos</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <i class="fas fa-mobile-alt feature-icon"></i>
+      <div>
+        <h4>Recupera tu cuenta</h4>
+        <p>Usa tu teléfono si olvidas tu contraseña</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Mostrar/ocultar contraseña
+  document.querySelectorAll(".toggle-password").forEach((button) => {
+    button.addEventListener("click", function () {
+      const targetId = this.getAttribute("data-target");
+      const input = document.getElementById(targetId);
+      const icon = this.querySelector("i");
+
+      if (input.getAttribute("type") === "password") {
+        input.setAttribute("type", "text");
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+      } else {
+        input.setAttribute("type", "password");
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+      }
+    });
+  });
+
+  // Validar teléfono (solo números)
+  const telefonoInput = document.getElementById("telefono");
+  if (telefonoInput) {
+    telefonoInput.addEventListener("input", function (e) {
+      this.value = this.value.replace(/[^0-9]/g, "");
+    });
+  }
+
+  // Validación de contraseña en tiempo real
+  const passwordInput = document.getElementById("password");
+  const confirmInput = document.getElementById("confirm_password");
+  const submitBtn = document.getElementById("submitBtn");
+  const strengthMeter = document.getElementById("strength-meter");
+
+  const reqLength = document.getElementById("req-length");
+  const reqUpper = document.getElementById("req-upper");
+  const reqSpecial = document.getElementById("req-special");
+
+  function validatePassword() {
+    const password = passwordInput.value;
+
+    const hasLength = password.length >= 8;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const isValid = hasLength && hasUpper && hasSpecial;
+
+    // Actualizar requisitos
+    if (hasLength) {
+      reqLength.innerHTML = '<i class="fas fa-check-circle"></i> 8 caracteres';
+      reqLength.className = "valid";
+    } else {
+      reqLength.innerHTML = '<i class="fas fa-times-circle"></i> 8 caracteres';
+      reqLength.className = "invalid";
+    }
+
+    if (hasUpper) {
+      reqUpper.innerHTML = '<i class="fas fa-check-circle"></i> Mayúscula';
+      reqUpper.className = "valid";
+    } else {
+      reqUpper.innerHTML = '<i class="fas fa-times-circle"></i> Mayúscula';
+      reqUpper.className = "invalid";
+    }
+
+    if (hasSpecial) {
+      reqSpecial.innerHTML =
+        '<i class="fas fa-check-circle"></i> Carácter especial';
+      reqSpecial.className = "valid";
+    } else {
+      reqSpecial.innerHTML =
+        '<i class="fas fa-times-circle"></i> Carácter especial (!@#$%^&*)';
+      reqSpecial.className = "invalid";
+    }
+
+    // Medidor de fuerza
+    strengthMeter.className = "strength-meter";
+    if (password.length === 0) {
+      strengthMeter.style.width = "0%";
+      strengthMeter.style.background = "none";
+    } else if (!hasLength) {
+      strengthMeter.classList.add("weak");
+    } else if (hasLength && (!hasUpper || !hasSpecial)) {
+      strengthMeter.classList.add("medium");
+    } else if (hasLength && hasUpper && hasSpecial) {
+      strengthMeter.classList.add("strong");
+    }
+
+    const passwordsMatch =
+      password === confirmInput.value && password.length > 0;
+    submitBtn.disabled = !(isValid && passwordsMatch);
+  }
+
+  passwordInput.addEventListener("input", validatePassword);
+  confirmInput.addEventListener("input", validatePassword);
+  validatePassword();
+</script>
+{% endblock %}

@@ -1,0 +1,375 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-header">
+        <i class="fas {{ 'fa-edit' if movimiento else 'fa-plus-circle' }}"></i>
+        <h2>{{ 'Editar Movimiento' if movimiento else 'Nuevo Movimiento' }}</h2>
+        <p>{{ 'Modifica los datos del movimiento' if movimiento else 'Registra un nuevo ingreso o gasto' }}</p>
+    </div>
+    
+    <form method="POST" class="movimiento-form">
+        <!-- Tipo de movimiento -->
+        <div class="form-card">
+            <div class="form-field">
+                <label class="form-label">
+                    <i class="fas fa-exchange-alt"></i>
+                    Tipo de movimiento
+                </label>
+                <div class="tipo-selector">
+                    <label class="tipo-option">
+                        <input type="radio" name="tipo" value="gasto" {{ 'checked' if not movimiento or movimiento['tipo'] == 'gasto' else '' }}>
+                        <span class="tipo-option-content gasto">
+                            <i class="fas fa-arrow-down"></i>
+                            <span>Gasto</span>
+                        </span>
+                    </label>
+                    <label class="tipo-option">
+                        <input type="radio" name="tipo" value="ingreso" {{ 'checked' if movimiento and movimiento['tipo'] == 'ingreso' else '' }}>
+                        <span class="tipo-option-content ingreso">
+                            <i class="fas fa-arrow-up"></i>
+                            <span>Ingreso</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Categoría -->
+        <div class="form-card">
+            <div class="form-field">
+                <label class="form-label">
+                    <i class="fas fa-tag"></i>
+                    Categoría
+                </label>
+                <select name="categoria_id" class="form-control" required>
+                    <option value="">Seleccionar categoría</option>
+                    {% for cat in categorias %}
+                    <option value="{{ cat['id'] }}" {{ 'selected' if movimiento and movimiento['categoria_id'] == cat['id'] else '' }}>
+                        {{ cat['nombre'] }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span class="form-hint">Elige la categoría que mejor describa este movimiento</span>
+            </div>
+        </div>
+        
+        <div class="form-row-2cols">
+            <!-- Monto -->
+            <div class="form-card">
+                <div class="form-field">
+                    <label class="form-label">
+                        <i class="fas fa-dollar-sign"></i>
+                        Monto
+                    </label>
+                    <input type="number" step="0.01" name="monto" class="form-control" 
+                           placeholder="0.00" value="{{ movimiento['monto'] if movimiento else '' }}" required>
+                    <span class="form-hint">Ingresa el monto exacto</span>
+                </div>
+            </div>
+            
+            <!-- Fecha -->
+            <div class="form-card">
+                <div class="form-field">
+                    <label class="form-label">
+                        <i class="fas fa-calendar-day"></i>
+                        Fecha
+                    </label>
+                    <input type="date" name="fecha" class="form-control" 
+                           value="{{ movimiento['fecha'] if movimiento else '' }}" required>
+                    <span class="form-hint">Selecciona la fecha del movimiento</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Descripción -->
+        <div class="form-card">
+            <div class="form-field">
+                <label class="form-label">
+                    <i class="fas fa-align-left"></i>
+                    Descripción
+                    <span class="label-optional">(opcional)</span>
+                </label>
+                <textarea name="descripcion" class="form-control" rows="3" 
+                          placeholder="Ej: Compra en supermercado, Pago de servicios...">{{ movimiento['descripcion'] if movimiento else '' }}</textarea>
+                <span class="form-hint">Agrega detalles adicionales si lo deseas</span>
+            </div>
+        </div>
+        
+        <!-- Botones de acción -->
+        <div class="form-actions">
+            <a href="{{ url_for('dashboard') }}" class="btn-cancel">
+                <i class="fas fa-times"></i> Cancelar
+            </a>
+            <button type="submit" class="btn-create">
+                <i class="fas fa-save"></i> {{ 'Guardar Cambios' if movimiento else 'Guardar Movimiento' }}
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+/* ========== CONTENEDOR PRINCIPAL ========== */
+.form-container {
+    max-width: 700px;
+    margin: 2rem auto;
+}
+
+/* ========== HEADER DEL FORMULARIO ========== */
+.form-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.form-header i {
+    font-size: 2.5rem;
+    color: #3B82F6;
+    margin-bottom: 0.5rem;
+    display: inline-block;
+}
+
+.form-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #F1F5F9;
+    margin-bottom: 0.25rem;
+}
+
+body[data-theme="light"] .form-header h2 {
+    color: #1E293B;
+}
+
+.form-header p {
+    color: #94A3B8;
+    font-size: 0.85rem;
+}
+
+/* ========== TARJETAS DEL FORMULARIO ========== */
+.form-card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    transition: all 0.2s ease;
+}
+
+.form-card:focus-within {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+body[data-theme="light"] .form-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #E2E8F0;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #CBD5E1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+body[data-theme="light"] .form-label {
+    color: #334155;
+}
+
+.label-optional {
+    font-size: 0.7rem;
+    font-weight: normal;
+    color: #64748B;
+    margin-left: 0.25rem;
+}
+
+.form-control {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: #F1F5F9;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    width: 100%;
+}
+
+body[data-theme="light"] .form-control {
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    color: #1E293B;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.form-control::placeholder {
+    color: #64748B;
+}
+
+textarea.form-control {
+    resize: vertical;
+}
+
+.form-hint {
+    font-size: 0.7rem;
+    color: #64748B;
+    margin-top: 0.25rem;
+}
+
+/* ========== SELECTOR DE TIPO ========== */
+.tipo-selector {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.tipo-option {
+    flex: 1;
+    cursor: pointer;
+}
+
+.tipo-option input {
+    display: none;
+}
+
+.tipo-option-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.75rem;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+    font-weight: 600;
+}
+
+body[data-theme="light"] .tipo-option-content {
+    background: #F1F5F9;
+}
+
+.tipo-option-content.gasto {
+    color: #F87171;
+}
+
+.tipo-option-content.ingreso {
+    color: #34D399;
+}
+
+.tipo-option input:checked + .tipo-option-content {
+    border-color: #3B82F6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+body[data-theme="light"] .tipo-option input:checked + .tipo-option-content {
+    background: #EFF6FF;
+}
+
+.tipo-option-content i {
+    font-size: 1.1rem;
+}
+
+/* ========== FILA DE DOS COLUMNAS ========== */
+.form-row-2cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* ========== BOTONES ========== */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-cancel, .btn-create {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+    text-decoration: none;
+}
+
+.btn-cancel {
+    background: rgba(100, 116, 139, 0.2);
+    color: #94A3B8;
+}
+
+.btn-cancel:hover {
+    background: rgba(100, 116, 139, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-create {
+    background: linear-gradient(135deg, #3B82F6, #8B5CF6);
+    color: white;
+}
+
+.btn-create:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+body[data-theme="light"] .btn-cancel {
+    background: #E2E8F0;
+    color: #475569;
+}
+
+body[data-theme="light"] .btn-cancel:hover {
+    background: #CBD5E1;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 640px) {
+    .form-container {
+        margin: 1rem auto;
+        padding: 0 1rem;
+    }
+    
+    .form-row-2cols {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+    
+    .tipo-selector {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn-cancel, .btn-create {
+        justify-content: center;
+        width: 100%;
+    }
+    
+    .form-card {
+        padding: 1rem;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,286 @@
+{% extends 'base.html' %} {% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="dashboard-title">Notificaciones</h1>
+    <p class="dashboard-subtitle">Mantente al día con tus finanzas</p>
+  </div>
+  <a
+    href="{{ url_for('marcar_todas_notificaciones') }}"
+    class="btn-marcar-todas"
+  >
+    <i class="fas fa-check-double"></i> Marcar todas como leídas
+  </a>
+</div>
+
+<div class="notificaciones-container">
+  {% if notificaciones %}
+  <div class="notificaciones-list">
+    {% for n in notificaciones %}
+    <div class="notificacion-item {% if not n.leido %}no-leida{% endif %}">
+      <div class="notificacion-icon">
+        {% if n.tipo == 'exito' %}
+        <i class="fas fa-check-circle" style="color: #10b981"></i>
+        {% elif n.tipo == 'alerta' %}
+        <i class="fas fa-exclamation-triangle" style="color: #f59e0b"></i>
+        {% elif n.tipo == 'peligro' %}
+        <i class="fas fa-times-circle" style="color: #ef4444"></i>
+        {% else %}
+        <i class="fas fa-info-circle" style="color: #3b82f6"></i>
+        {% endif %}
+      </div>
+      <div class="notificacion-content">
+        <div class="notificacion-mensaje">{{ n.mensaje }}</div>
+        <div class="notificacion-fecha">
+          <i class="fas fa-clock"></i>
+          {{ n.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+      </div>
+      {% if not n.leido %}
+      <div class="notificacion-action">
+        <a
+          href="{{ url_for('marcar_notificacion_leida', id=n.id) }}"
+          class="btn-marcar"
+        >
+          <i class="fas fa-envelope-open"></i>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="fas fa-bell-slash"></i>
+    <p>No hay notificaciones</p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .btn-marcar-todas {
+    background: #3b82f6;
+    color: white;
+    padding: 0.6rem 1.2rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-marcar-todas:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+  }
+
+  .notificaciones-container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .notificaciones-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .notificacion-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 1rem;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(59, 130, 246, 0.15);
+  }
+
+  .notificacion-item:hover {
+    transform: translateX(5px);
+    background: rgba(30, 41, 59, 0.7);
+  }
+
+  .notificacion-item.no-leida {
+    background: rgba(59, 130, 246, 0.15);
+    border-left: 3px solid #3b82f6;
+  }
+
+  body[data-theme="light"] .notificacion-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  body[data-theme="light"] .notificacion-item.no-leida {
+    background: #eff6ff;
+  }
+
+  body[data-theme="light"] .notificacion-item:hover {
+    background: #f1f5f9;
+  }
+
+  .notificacion-icon {
+    font-size: 1.5rem;
+    width: 40px;
+    text-align: center;
+  }
+
+  .notificacion-content {
+    flex: 1;
+  }
+
+  .notificacion-mensaje {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
+  }
+
+  .notificacion-fecha {
+    font-size: 0.7rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .notificacion-action .btn-marcar {
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    font-size: 0.8rem;
+    background: #3b82f6;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: all 0.2s ease;
+  }
+
+  .notificacion-action .btn-marcar:hover {
+    background: #2563eb;
+    transform: scale(1.05);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 1rem;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state p {
+    color: #94a3b8;
+  }
+
+  /* Filtros de notificaciones (opcional) */
+  .notificaciones-filtros {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .filtro-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 2rem;
+    background: rgba(30, 41, 59, 0.5);
+    color: #94a3b8;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .filtro-btn:hover,
+  .filtro-btn.active {
+    background: #3b82f6;
+    color: white;
+  }
+
+  body[data-theme="light"] .filtro-btn {
+    background: #e2e8f0;
+    color: #475569;
+  }
+
+  body[data-theme="light"] .filtro-btn:hover,
+  body[data-theme="light"] .filtro-btn.active {
+    background: #3b82f6;
+    color: white;
+  }
+
+  @media (max-width: 768px) {
+    .page-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .btn-marcar-todas {
+      justify-content: center;
+    }
+
+    .notificacion-item {
+      flex-wrap: wrap;
+    }
+
+    .notificacion-action {
+      margin-left: auto;
+    }
+  }
+</style>
+
+<script>
+  // Filtros de notificaciones (opcional)
+  function filtrarNotificaciones(tipo) {
+    const items = document.querySelectorAll(".notificacion-item");
+    const botones = document.querySelectorAll(".filtro-btn");
+
+    botones.forEach((btn) => btn.classList.remove("active"));
+    event.target.classList.add("active");
+
+    items.forEach((item) => {
+      if (tipo === "todas") {
+        item.style.display = "flex";
+      } else {
+        const icon = item.querySelector(".notificacion-icon i");
+        if (icon) {
+          if (tipo === "exito" && icon.style.color === "rgb(16, 185, 129)") {
+            item.style.display = "flex";
+          } else if (
+            tipo === "alerta" &&
+            icon.style.color === "rgb(245, 158, 11)"
+          ) {
+            item.style.display = "flex";
+          } else if (
+            tipo === "peligro" &&
+            icon.style.color === "rgb(239, 68, 68)"
+          ) {
+            item.style.display = "flex";
+          } else if (
+            tipo === "info" &&
+            icon.style.color === "rgb(59, 130, 246)"
+          ) {
+            item.style.display = "flex";
+          } else {
+            item.style.display = "none";
+          }
+        }
+      }
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,489 @@
+{% extends 'base.html' %} {% block content %}
+<div class="page-header">
+  <div class="page-header-info">
+    <h1 class="dashboard-title">Presupuestos por Categoría</h1>
+    <p class="dashboard-subtitle">
+      Controla tus límites de gasto y evita excederte
+    </p>
+  </div>
+</div>
+
+<!-- Formulario para nuevo presupuesto -->
+<div class="card form-card">
+  <div class="card-header">
+    <h3><i class="fas fa-plus-circle"></i> Nuevo Presupuesto</h3>
+  </div>
+
+  <form
+    method="POST"
+    action="{{ url_for('nuevo_presupuesto') }}"
+    class="presupuesto-form"
+  >
+    <input type="hidden" name="mes" value="{{ mes }}" />
+    <input type="hidden" name="anio" value="{{ anio }}" />
+
+    <div class="form-row-3cols">
+      <div class="form-group">
+        <label for="categoria_id"> <i class="fas fa-tag"></i> Categoría </label>
+        <select
+          id="categoria_id"
+          name="categoria_id"
+          class="form-control"
+          required
+        >
+          <option value="">Seleccionar categoría</option>
+          {% for cat in categorias_sin_presupuesto %}
+          <option value="{{ cat.categoria_id }}">
+            {{ cat.nombre }} (Gastado: ${{ "%.2f"|format(cat.gastado) }})
+          </option>
+          {% endfor %} {% if not categorias_sin_presupuesto %} {% for cat in
+          categorias %}
+          <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+          {% endfor %} {% endif %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="limite">
+          <i class="fas fa-dollar-sign"></i> Límite ($)
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          id="limite"
+          name="limite"
+          class="form-control"
+          placeholder="Ej: 5000"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn-new-presupuesto">
+          <i class="fas fa-plus-circle"></i>
+          <span>Agregar Presupuesto</span>
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Lista de presupuestos existentes -->
+<div class="presupuestos-grid">
+  {% if presupuestos %} {% for p in presupuestos %}
+  <div class="presupuesto-card">
+    <div class="presupuesto-header">
+      <div class="presupuesto-title">
+        <i class="fas fa-chart-line"></i>
+        <h3>{{ p.categoria_nombre }}</h3>
+      </div>
+      <div class="presupuesto-actions">
+        <a
+          href="{{ url_for('eliminar_presupuesto', id=p.id) }}"
+          class="btn-eliminar-presupuesto"
+          onclick="return confirm('¿Eliminar este presupuesto?');"
+        >
+          <i class="fas fa-trash"></i>
+        </a>
+      </div>
+    </div>
+
+    <div class="presupuesto-monto">
+      <div class="limite">
+        <span>Límite:</span>
+        <strong>${{ "%.2f"|format(p.limite) }}</strong>
+      </div>
+      <div class="gastado">
+        <span>Gastado:</span>
+        <strong
+          style="color: {{ '#EF4444' if p.gastado > p.limite else '#34D399' }}"
+        >
+          ${{ "%.2f"|format(p.gastado) }}
+        </strong>
+      </div>
+    </div>
+
+    <div class="presupuesto-progress">
+      <div class="progress-bar">
+        <div
+          class="progress-fill"
+          style="width: {{ p.porcentaje }}%; background: {{ 'linear-gradient(90deg, #EF4444, #F87171)' if p.porcentaje > 100 else 'linear-gradient(90deg, #10B981, #34D399)' }};"
+        ></div>
+      </div>
+      <div class="progress-stats">
+        <span>{{ "%.1f"|format(p.porcentaje) }}%</span>
+        <span>Restante: ${{ "%.2f"|format(p.limite - p.gastado) }}</span>
+      </div>
+    </div>
+
+    {% if p.gastado > p.limite %}
+    <div class="alerta-exceso">
+      <i class="fas fa-exclamation-triangle"></i>
+      Has excedido el presupuesto en ${{ "%.2f"|format(p.gastado - p.limite) }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %} {% else %}
+  <div class="empty-state">
+    <i class="fas fa-chart-line"></i>
+    <p>No tienes presupuestos definidos</p>
+    <p class="empty-hint">
+      Agrega tu primer presupuesto usando el formulario de arriba
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  /* ========== PAGE HEADER ========== */
+  .page-header {
+    margin-bottom: 2rem;
+  }
+
+  .page-header-info {
+    text-align: left;
+  }
+
+  /* ========== FORMULARIO ========== */
+  .form-card {
+    margin-bottom: 2rem;
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(10px);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  body[data-theme="light"] .form-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e2e8f0;
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid rgba(59, 130, 246, 0.2);
+  }
+
+  .card-header h3 {
+    margin-bottom: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #f1f5f9;
+  }
+
+  body[data-theme="light"] .card-header h3 {
+    color: #1e293b;
+  }
+
+  .presupuesto-form {
+    width: 100%;
+  }
+
+  .form-row-3cols {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 1rem;
+    align-items: end;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  body[data-theme="light"] .form-group label {
+    color: #334155;
+  }
+
+  .form-control {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    color: #f1f5f9;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    width: 100%;
+  }
+
+  body[data-theme="light"] .form-control {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+  }
+
+  .form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  select.form-control {
+    cursor: pointer;
+  }
+
+  /* ========== BOTÓN AGREGAR PRESUPUESTO ========== */
+  .btn-new-presupuesto {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .btn-new-presupuesto i {
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+  }
+
+  .btn-new-presupuesto span {
+    position: relative;
+    z-index: 1;
+  }
+
+  .btn-new-presupuesto:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+  }
+
+  .btn-new-presupuesto:hover i {
+    transform: rotate(90deg);
+  }
+
+  .btn-new-presupuesto::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: left 0.5s ease;
+  }
+
+  .btn-new-presupuesto:hover::before {
+    left: 100%;
+  }
+
+  .btn-new-presupuesto:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  }
+
+  body[data-theme="light"] .btn-new-presupuesto {
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  }
+
+  /* ========== PRESUPUESTOS GRID ========== */
+  .presupuestos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .presupuesto-card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .presupuesto-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.3);
+  }
+
+  body[data-theme="light"] .presupuesto-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e2e8f0;
+  }
+
+  .presupuesto-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .presupuesto-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .presupuesto-title i {
+    font-size: 1.2rem;
+    color: #3b82f6;
+  }
+
+  .presupuesto-title h3 {
+    font-size: 1.1rem;
+    color: #f1f5f9;
+    margin: 0;
+  }
+
+  body[data-theme="light"] .presupuesto-title h3 {
+    color: #1e293b;
+  }
+
+  .btn-eliminar-presupuesto {
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: all 0.2s ease;
+    text-decoration: none;
+  }
+
+  .btn-eliminar-presupuesto:hover {
+    background: #dc2626;
+    transform: scale(1.02);
+  }
+
+  .presupuesto-monto {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 0.5rem;
+  }
+
+  .presupuesto-monto span {
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+
+  .presupuesto-monto strong {
+    font-size: 0.9rem;
+  }
+
+  .progress-bar {
+    background: rgba(51, 65, 85, 0.8);
+    border-radius: 1rem;
+    height: 0.5rem;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 1rem;
+    transition: width 0.5s ease;
+  }
+
+  .progress-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: #94a3b8;
+  }
+
+  .alerta-exceso {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(239, 68, 68, 0.2);
+    border-radius: 0.5rem;
+    color: #f87171;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /* ========== EMPTY STATE ========== */
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 1rem;
+    grid-column: 1 / -1;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    color: #64748b;
+    margin-bottom: 1rem;
+  }
+
+  .empty-state p {
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-hint {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 768px) {
+    .form-row-3cols {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    .btn-new-presupuesto {
+      width: 100%;
+      justify-content: center;
+      padding: 0.7rem;
+    }
+
+    .presupuestos-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .presupuesto-header {
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+  }
+</style>
+{% endblock %}
