@@ -2,6 +2,7 @@ import os
 import mysql.connector
 from mysql.connector import Error
 import psycopg2
+import psycopg2.extras
 
 def get_db_connection():
     """Establece conexión según el entorno"""
@@ -21,12 +22,17 @@ def get_postgres_connection():
         database_url = os.environ.get('DATABASE_URL')
         
         if not database_url:
-            print("❌ No se encontró DATABASE_URL")
+            print("❌ No se encontró DATABASE_URL en las variables de entorno")
+            print("   Asegúrate de configurar DATABASE_URL en Render")
             return None
         
         print("✅ Conectando a PostgreSQL...")
+        # Añadir sslmode si es necesario
+        if '?' not in database_url:
+            database_url += '?sslmode=require'
+        
         conn = psycopg2.connect(database_url)
-        print("✅ Conexión a PostgreSQL establecida")
+        print("✅ Conexión a PostgreSQL establecida exitosamente")
         return conn
         
     except Exception as e:
@@ -61,7 +67,7 @@ def init_db():
         return init_mysql_db()
 
 def init_postgres_db():
-    """Inicializa PostgreSQL en Render (solo se ejecuta UNA VEZ)"""
+    """Inicializa PostgreSQL en Render"""
     try:
         conn = get_postgres_connection()
         if not conn:
@@ -158,6 +164,15 @@ def create_tables_mysql(cursor):
         FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
     )''')
     
+    cursor.execute('''CREATE TABLE IF NOT EXISTS aportaciones_meta (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        meta_id INT NOT NULL,
+        monto DECIMAL(10,2) NOT NULL,
+        fecha DATE NOT NULL,
+        descripcion TEXT,
+        FOREIGN KEY (meta_id) REFERENCES metas(id) ON DELETE CASCADE
+    )''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
         id INT AUTO_INCREMENT PRIMARY KEY,
         usuario_id INT NOT NULL,
@@ -245,6 +260,14 @@ def create_tables_postgres(cursor):
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    cursor.execute('''CREATE TABLE IF NOT EXISTS aportaciones_meta (
+        id SERIAL PRIMARY KEY,
+        meta_id INT NOT NULL REFERENCES metas(id) ON DELETE CASCADE,
+        monto DECIMAL(10,2) NOT NULL,
+        fecha DATE NOT NULL,
+        descripcion TEXT
+    )''')
+    
     cursor.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
         id SERIAL PRIMARY KEY,
         usuario_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -276,27 +299,3 @@ def create_tables_postgres(cursor):
     )''')
     
     print("✅ Tablas PostgreSQL creadas/verificadas")
-
-# ==================== INICIALIZAR LA BASE DE DATOS ====================
-# Solo si estamos en desarrollo local (MySQL) o la primera vez en Render
-if not os.environ.get('RENDER'):
-    # En desarrollo local, inicializar MySQL
-    init_db()
-else:
-    # En Render, inicializar PostgreSQL solo si no existe la tabla users
-    try:
-        conn = get_postgres_connection()
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')")
-            exists = cursor.fetchone()[0]
-            cursor.close()
-            conn.close()
-            
-            if not exists:
-                print("🔄 Creando tablas en PostgreSQL por primera vez...")
-                init_postgres_db()
-            else:
-                print("✅ Tablas PostgreSQL ya existen, omitiendo inicialización")
-    except Exception as e:
-        print(f"⚠️ Error verificando tablas: {e}")

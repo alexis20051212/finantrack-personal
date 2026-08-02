@@ -9,140 +9,10 @@ from io import BytesIO
 from exchange_api import exchange_api, COMMON_CURRENCIES
 from fred_api import fred_api, FRED_SERIES
 from db_config import get_db_connection
+import os
+
 app = Flask(__name__)
 app.secret_key = 'FinanTrack_MySQL_Clave_Segura_2024'
-
-# ==================== CONFIGURACIÓN DE BASE DE DATOS ====================
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'jisa2005',
-    'database': 'FinanTrackDB',
-    'port': 3306
-}
-
-def get_db_connection():
-    try:
-        connection = mysql.connector.connect(**DB_CONFIG)
-        if connection.is_connected():
-            return connection
-    except Error as e:
-        print(f"Error de conexión a MySQL: {e}")
-        return None
-
-def init_db():
-    try:
-        conn = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password='jisa2005',
-            port=3306
-        )
-        cursor = conn.cursor()
-        
-        cursor.execute("CREATE DATABASE IF NOT EXISTS FinanTrackDB")
-        cursor.execute("USE FinanTrackDB")
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nombre VARCHAR(100) NOT NULL,
-            email VARCHAR(100) UNIQUE NOT NULL,
-            telefono VARCHAR(20) NULL,
-            password VARCHAR(255) NOT NULL,
-            default_currency VARCHAR(10) DEFAULT 'USD',
-            fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )''')
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS categorias (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nombre VARCHAR(50) UNIQUE NOT NULL
-        )''')
-        
-        categorias = [
-            'Alimentación', 'Transporte', 'Entretenimiento', 'Salud', 'Educación',
-            'Servicios', 'Otros', 'Trabajo', 'Inversión', 'Compras', 'Vivienda',
-            'Mascotas', 'Regalos', 'Suscripciones', 'Deportes', 'Viajes', 'Tecnología'
-        ]
-        for cat in categorias:
-            cursor.execute("INSERT IGNORE INTO categorias (nombre) VALUES (%s)", (cat,))
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS movimientos (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            tipo ENUM('ingreso', 'gasto') NOT NULL,
-            monto DECIMAL(10,2) NOT NULL,
-            categoria_id INT NOT NULL,
-            descripcion TEXT,
-            fecha DATE NOT NULL,
-            currency VARCHAR(10) DEFAULT 'USD',
-            FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (categoria_id) REFERENCES categorias(id)
-        )''')
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS metas (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            nombre VARCHAR(100) NOT NULL,
-            monto_objetivo DECIMAL(10,2) NOT NULL,
-            monto_actual DECIMAL(10,2) DEFAULT 0,
-            fecha_limite DATE,
-            currency VARCHAR(10) DEFAULT 'USD',
-            fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
-        )''')
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS aportaciones_meta (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            meta_id INT NOT NULL,
-            monto DECIMAL(10,2) NOT NULL,
-            fecha DATE NOT NULL,
-            descripcion TEXT,
-            FOREIGN KEY (meta_id) REFERENCES metas(id) ON DELETE CASCADE
-        )''')
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            categoria_id INT NOT NULL,
-            mes INT NOT NULL,
-            anio INT NOT NULL,
-            limite DECIMAL(10,2) NOT NULL,
-            currency VARCHAR(10) DEFAULT 'USD',
-            FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (categoria_id) REFERENCES categorias(id),
-            UNIQUE KEY unique_presupuesto (usuario_id, categoria_id, mes, anio)
-        )''')
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS recordatorios (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            titulo VARCHAR(100) NOT NULL,
-            descripcion TEXT,
-            fecha DATE NOT NULL,
-            tipo ENUM('pago', 'recordatorio', 'meta') DEFAULT 'recordatorio',
-            completado BOOLEAN DEFAULT FALSE,
-            FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
-        )''')
-        
-        cursor.execute('''CREATE TABLE IF NOT EXISTS notificaciones (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            usuario_id INT NOT NULL,
-            mensaje TEXT NOT NULL,
-            tipo ENUM('exito', 'alerta', 'info', 'peligro') DEFAULT 'info',
-            leido BOOLEAN DEFAULT FALSE,
-            fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
-        )''')
-        
-        conn.commit()
-        conn.close()
-        print("✅ Base de datos MySQL inicializada correctamente")
-        return True
-    except Error as e:
-        print(f"❌ Error inicializando MySQL: {e}")
-        return False
-
-init_db()
 
 # ==================== DECORADOR ====================
 def login_required(f):
@@ -177,17 +47,33 @@ def verificar_presupuestos_notificacion(usuario_id):
     mes_actual = datetime.now().month
     anio_actual = datetime.now().year
     
-    cursor.execute("""
-        SELECT c.nombre as categoria, p.limite, COALESCE(SUM(m.monto), 0) as gastado
-        FROM presupuestos p
-        JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        WHERE p.usuario_id = %s AND p.mes = %s AND p.anio = %s
-        GROUP BY c.id, c.nombre, p.limite
-        HAVING gastado > limite
-    """, (usuario_id, mes_actual, anio_actual, usuario_id, mes_actual, anio_actual))
+    # Consulta para PostgreSQL y MySQL
+    if os.environ.get('RENDER'):
+        # PostgreSQL
+        cursor.execute("""
+            SELECT c.nombre as categoria, p.limite, COALESCE(SUM(m.monto), 0) as gastado
+            FROM presupuestos p
+            JOIN categorias c ON p.categoria_id = c.id
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
+            WHERE p.usuario_id = %s AND p.mes = %s AND p.anio = %s
+            GROUP BY c.id, c.nombre, p.limite
+            HAVING gastado > limite
+        """, (usuario_id, mes_actual, anio_actual, usuario_id, mes_actual, anio_actual))
+    else:
+        # MySQL
+        cursor.execute("""
+            SELECT c.nombre as categoria, p.limite, COALESCE(SUM(m.monto), 0) as gastado
+            FROM presupuestos p
+            JOIN categorias c ON p.categoria_id = c.id
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
+            WHERE p.usuario_id = %s AND p.mes = %s AND p.anio = %s
+            GROUP BY c.id, c.nombre, p.limite
+            HAVING gastado > limite
+        """, (usuario_id, mes_actual, anio_actual, usuario_id, mes_actual, anio_actual))
     
     presupuestos_excedidos = cursor.fetchall()
     cursor.close()
@@ -206,12 +92,22 @@ def verificar_recordatorios_pendientes():
     
     fecha_limite = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
     
-    cursor.execute("""
-        SELECT r.*, u.email, u.nombre as usuario_nombre
-        FROM recordatorios r
-        JOIN users u ON r.usuario_id = u.id
-        WHERE r.fecha <= %s AND r.fecha >= CURDATE() AND r.completado = FALSE
-    """, (fecha_limite,))
+    if os.environ.get('RENDER'):
+        # PostgreSQL
+        cursor.execute("""
+            SELECT r.*, u.email, u.nombre as usuario_nombre
+            FROM recordatorios r
+            JOIN users u ON r.usuario_id = u.id
+            WHERE r.fecha <= %s AND r.fecha >= CURRENT_DATE AND r.completado = FALSE
+        """, (fecha_limite,))
+    else:
+        # MySQL
+        cursor.execute("""
+            SELECT r.*, u.email, u.nombre as usuario_nombre
+            FROM recordatorios r
+            JOIN users u ON r.usuario_id = u.id
+            WHERE r.fecha <= %s AND r.fecha >= CURDATE() AND r.completado = FALSE
+        """, (fecha_limite,))
     
     recordatorios = cursor.fetchall()
     cursor.close()
@@ -241,7 +137,6 @@ def convertir_movimiento_a_moneda(monto, from_currency='USD', to_currency=None):
     
     converted = exchange_api.convert_currency(monto, from_currency, to_currency)
     return converted if converted is not None else monto
-
 # ==================== CAMBIAR TEMA ====================
 @app.route('/cambiar-tema', methods=['GET', 'POST'])
 def cambiar_tema():
@@ -409,60 +304,117 @@ def dashboard():
         
         meses_nombres.append(date(2000, mes_num, 1).strftime('%b'))
         
-        cursor.execute("""
-            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
-            WHERE usuario_id = %s AND tipo = 'ingreso' 
-            AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-        """, (session['user_id'], mes_num, año_num))
+        # Consulta adaptada para PostgreSQL y MySQL
+        if os.environ.get('RENDER'):
+            cursor.execute("""
+                SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+                WHERE usuario_id = %s AND tipo = 'ingreso' 
+                AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+            """, (session['user_id'], mes_num, año_num))
+        else:
+            cursor.execute("""
+                SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+                WHERE usuario_id = %s AND tipo = 'ingreso' 
+                AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+            """, (session['user_id'], mes_num, año_num))
         ingresos_mensuales.append(float(cursor.fetchone()['total'] or 0))
         
-        cursor.execute("""
-            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
-            WHERE usuario_id = %s AND tipo = 'gasto'
-            AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-        """, (session['user_id'], mes_num, año_num))
+        if os.environ.get('RENDER'):
+            cursor.execute("""
+                SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+                WHERE usuario_id = %s AND tipo = 'gasto'
+                AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+            """, (session['user_id'], mes_num, año_num))
+        else:
+            cursor.execute("""
+                SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+                WHERE usuario_id = %s AND tipo = 'gasto'
+                AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+            """, (session['user_id'], mes_num, año_num))
         gastos_mensuales.append(float(cursor.fetchone()['total'] or 0))
     
-    cursor.execute("""
-        SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0 ORDER BY total DESC LIMIT 6
-    """, (session['user_id'], mes_actual, anio_actual))
+    # Consultas para categorías y otros datos (adaptadas para ambos DB)
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC LIMIT 6
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC LIMIT 6
+        """, (session['user_id'], mes_actual, anio_actual))
     categorias_top = cursor.fetchall()
     
     categorias_nombres = [cat['categoria_nombre'] for cat in categorias_top]
     categorias_totales = [float(cat['total']) for cat in categorias_top]
     
-    cursor.execute("""
-        SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
-        WHERE usuario_id = %s AND tipo = 'ingreso' 
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_actual, anio_actual))
+    # Totales del mes
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'ingreso' 
+            AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'ingreso' 
+            AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+        """, (session['user_id'], mes_actual, anio_actual))
     total_ingresos = cursor.fetchone()['total'] or 0
     
-    cursor.execute("""
-        SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
-        WHERE usuario_id = %s AND tipo = 'gasto'
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_actual, anio_actual))
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'gasto'
+            AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'gasto'
+            AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+        """, (session['user_id'], mes_actual, anio_actual))
     total_gastos = cursor.fetchone()['total'] or 0
     
-    cursor.execute("""
-        SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
-        WHERE usuario_id = %s AND tipo = 'ingreso' 
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_anterior, anio_anterior))
+    # Mes anterior
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'ingreso' 
+            AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+        """, (session['user_id'], mes_anterior, anio_anterior))
+    else:
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'ingreso' 
+            AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+        """, (session['user_id'], mes_anterior, anio_anterior))
     ingresos_anterior = cursor.fetchone()['total'] or 0
     
-    cursor.execute("""
-        SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
-        WHERE usuario_id = %s AND tipo = 'gasto'
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_anterior, anio_anterior))
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'gasto'
+            AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+        """, (session['user_id'], mes_anterior, anio_anterior))
+    else:
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total FROM movimientos 
+            WHERE usuario_id = %s AND tipo = 'gasto'
+            AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+        """, (session['user_id'], mes_anterior, anio_anterior))
     gastos_anterior = cursor.fetchone()['total'] or 0
     
     variacion_ingresos = ((total_ingresos - ingresos_anterior) / ingresos_anterior * 100) if ingresos_anterior > 0 else 0
@@ -480,15 +432,27 @@ def dashboard():
     porcentaje_meta = 100 if total_ingresos > 0 and balance >= 0 else (balance / total_ingresos * 100) if total_ingresos > 0 else 0
     porcentaje_meta = max(0, min(100, porcentaje_meta))
     
-    cursor.execute("""
-        SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0 ORDER BY total DESC LIMIT 3
-    """, (session['user_id'], mes_actual, anio_actual))
+    # Top categorías
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC LIMIT 3
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC LIMIT 3
+        """, (session['user_id'], mes_actual, anio_actual))
     top_categorias_raw = cursor.fetchall()
     
     top_categorias = []
@@ -500,15 +464,27 @@ def dashboard():
                 'porcentaje': (item['total'] / total_gastos) * 100
             })
     
-    cursor.execute("""
-        SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0 ORDER BY total DESC
-    """, (session['user_id'], mes_actual, anio_actual))
+    # Gastos por categoría
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' AND m.usuario_id = %s
+                AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC
+        """, (session['user_id'], mes_actual, anio_actual))
     gastos_por_categoria_raw = cursor.fetchall()
     
     gastos_por_categoria = []
@@ -520,15 +496,27 @@ def dashboard():
                 'porcentaje': (item['total'] / total_gastos) * 100
             })
     
-    cursor.execute("""
-        SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'ingreso' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0 ORDER BY total DESC
-    """, (session['user_id'], mes_actual, anio_actual))
+    # Ingresos por categoría
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'ingreso' AND m.usuario_id = %s
+                AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
+            FROM categorias c
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'ingreso' AND m.usuario_id = %s
+                AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
+            GROUP BY c.id, c.nombre
+            HAVING total > 0 ORDER BY total DESC
+        """, (session['user_id'], mes_actual, anio_actual))
     ingresos_por_categoria_raw = cursor.fetchall()
     
     ingresos_por_categoria = []
@@ -540,16 +528,29 @@ def dashboard():
                 'porcentaje': (item['total'] / total_ingresos) * 100
             })
     
-    cursor.execute("""
-        SELECT m.id, m.tipo, m.monto, m.descripcion, 
-               DATE_FORMAT(m.fecha, '%d/%m/%Y') as fecha, 
-               c.nombre as categoria_nombre, m.currency
-        FROM movimientos m
-        JOIN categorias c ON m.categoria_id = c.id
-        WHERE m.usuario_id = %s
-        ORDER BY m.fecha DESC, m.id DESC
-        LIMIT 10
-    """, (session['user_id'],))
+    # Últimos movimientos
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT m.id, m.tipo, m.monto, m.descripcion, 
+                   TO_CHAR(m.fecha, 'DD/MM/YYYY') as fecha, 
+                   c.nombre as categoria_nombre, m.currency
+            FROM movimientos m
+            JOIN categorias c ON m.categoria_id = c.id
+            WHERE m.usuario_id = %s
+            ORDER BY m.fecha DESC, m.id DESC
+            LIMIT 10
+        """, (session['user_id'],))
+    else:
+        cursor.execute("""
+            SELECT m.id, m.tipo, m.monto, m.descripcion, 
+                   DATE_FORMAT(m.fecha, '%d/%m/%Y') as fecha, 
+                   c.nombre as categoria_nombre, m.currency
+            FROM movimientos m
+            JOIN categorias c ON m.categoria_id = c.id
+            WHERE m.usuario_id = %s
+            ORDER BY m.fecha DESC, m.id DESC
+            LIMIT 10
+        """, (session['user_id'],))
     ultimos_movimientos = cursor.fetchall()
     
     cursor.execute("""
@@ -558,6 +559,7 @@ def dashboard():
     """, (session['user_id'],))
     notificaciones_no_leidas = cursor.fetchone()['total'] or 0
     
+    # Consejo del zorro
     consejo_zorro = {}
     
     if total_ingresos == 0 and total_gastos == 0:
@@ -660,8 +662,7 @@ def dashboard():
                          notificaciones_no_leidas=notificaciones_no_leidas,
                          user_currency=user_currency,
                          currencies=COMMON_CURRENCIES)
-
-# ==================== CRUD MOVIMIENTOS ====================
+    # ==================== CRUD MOVIMIENTOS ====================
 @app.route('/agregar-movimiento', methods=['GET', 'POST'])
 @login_required
 def agregar_movimiento():
@@ -779,14 +780,24 @@ def listar_metas():
     cursor = conn.cursor(dictionary=True)
     user_currency = session.get('default_currency', 'USD')
     
-    cursor.execute("""
-        SELECT m.*, 
-               (m.monto_actual / m.monto_objetivo * 100) as porcentaje,
-               DATEDIFF(m.fecha_limite, CURDATE()) as dias_restantes
-        FROM metas m
-        WHERE m.usuario_id = %s
-        ORDER BY (m.monto_actual / m.monto_objetivo) ASC
-    """, (session['user_id'],))
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT m.*, 
+                   (m.monto_actual / m.monto_objetivo * 100) as porcentaje,
+                   EXTRACT(DAY FROM (m.fecha_limite - CURRENT_DATE)) as dias_restantes
+            FROM metas m
+            WHERE m.usuario_id = %s
+            ORDER BY (m.monto_actual / m.monto_objetivo) ASC
+        """, (session['user_id'],))
+    else:
+        cursor.execute("""
+            SELECT m.*, 
+                   (m.monto_actual / m.monto_objetivo * 100) as porcentaje,
+                   DATEDIFF(m.fecha_limite, CURDATE()) as dias_restantes
+            FROM metas m
+            WHERE m.usuario_id = %s
+            ORDER BY (m.monto_actual / m.monto_objetivo) ASC
+        """, (session['user_id'],))
     metas = cursor.fetchall()
     
     cursor.close()
@@ -834,7 +845,7 @@ def aportar_meta(id):
     
     cursor.execute("""
         INSERT INTO aportaciones_meta (meta_id, monto, fecha, descripcion)
-        VALUES (%s, %s, CURDATE(), %s)
+        VALUES (%s, %s, CURRENT_DATE, %s)
     """, (id, monto, descripcion))
     
     conn.commit()
@@ -860,7 +871,6 @@ def eliminar_meta(id):
     
     flash('Meta eliminada', 'success')
     return redirect(url_for('listar_metas'))
-
 # ==================== PRESUPUESTOS ====================
 @app.route('/presupuestos')
 @login_required
@@ -880,16 +890,28 @@ def listar_presupuestos():
     """, (session['user_id'], mes_actual, anio_actual))
     presupuestos = cursor.fetchall()
     
-    cursor.execute("""
-        SELECT c.id as categoria_id, c.nombre, COALESCE(SUM(m.monto), 0) as gastado
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' 
-            AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s 
-            AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-    """, (session['user_id'], mes_actual, anio_actual))
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT c.id as categoria_id, c.nombre, COALESCE(SUM(m.monto), 0) as gastado
+            FROM categorias c
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' 
+                AND m.usuario_id = %s
+                AND EXTRACT(MONTH FROM m.fecha) = %s 
+                AND EXTRACT(YEAR FROM m.fecha) = %s
+            GROUP BY c.id, c.nombre
+        """, (session['user_id'], mes_actual, anio_actual))
+    else:
+        cursor.execute("""
+            SELECT c.id as categoria_id, c.nombre, COALESCE(SUM(m.monto), 0) as gastado
+            FROM categorias c
+            LEFT JOIN movimientos m ON c.id = m.categoria_id 
+                AND m.tipo = 'gasto' 
+                AND m.usuario_id = %s
+                AND MONTH(m.fecha) = %s 
+                AND YEAR(m.fecha) = %s
+            GROUP BY c.id, c.nombre
+        """, (session['user_id'], mes_actual, anio_actual))
     gastos_reales = cursor.fetchall()
     
     for p in presupuestos:
@@ -931,11 +953,21 @@ def nuevo_presupuesto():
     cursor = conn.cursor()
     
     try:
-        cursor.execute("""
-            INSERT INTO presupuestos (usuario_id, categoria_id, mes, anio, limite, currency)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE limite = %s, currency = %s
-        """, (session['user_id'], categoria_id, mes, anio, limite, currency, limite, currency))
+        if os.environ.get('RENDER'):
+            # PostgreSQL
+            cursor.execute("""
+                INSERT INTO presupuestos (usuario_id, categoria_id, mes, anio, limite, currency)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (usuario_id, categoria_id, mes, anio) 
+                DO UPDATE SET limite = %s, currency = %s
+            """, (session['user_id'], categoria_id, mes, anio, limite, currency, limite, currency))
+        else:
+            # MySQL
+            cursor.execute("""
+                INSERT INTO presupuestos (usuario_id, categoria_id, mes, anio, limite, currency)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE limite = %s, currency = %s
+            """, (session['user_id'], categoria_id, mes, anio, limite, currency, limite, currency))
         conn.commit()
         
         crear_notificacion(session['user_id'], f"Presupuesto creado con límite de ${limite:,.2f} {currency}", 'exito')
@@ -1055,7 +1087,6 @@ def eliminar_recordatorio(id):
     
     flash('Recordatorio eliminado', 'success')
     return redirect(url_for('listar_recordatorios'))
-
 # ==================== NOTIFICACIONES ====================
 @app.route('/notificaciones')
 @login_required
@@ -1122,7 +1153,6 @@ def api_notificaciones_no_leidas():
     return {'total': resultado['total'] if resultado else 0}
 
 # ==================== EXCHANGE RATE API ====================
-
 @app.route('/cambiar-divisa', methods=['POST'])
 @login_required
 def cambiar_divisa():
@@ -1203,8 +1233,8 @@ def configuracion_divisas():
     return render_template('divisas.html', 
                          currencies=COMMON_CURRENCIES,
                          user_currency=user_currency)
-# ==================== FRED API ====================
 
+# ==================== FRED API ====================
 @app.route('/fred')
 @login_required
 def fred_dashboard():
@@ -1282,12 +1312,20 @@ def datos_graficos():
     gastos_por_mes = []
     
     for mes in range(1, 13):
-        cursor.execute("""
-            SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
-                   COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
-            FROM movimientos
-            WHERE usuario_id = %s AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-        """, (session['user_id'], mes, anio_actual))
+        if os.environ.get('RENDER'):
+            cursor.execute("""
+                SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
+                       COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
+                FROM movimientos
+                WHERE usuario_id = %s AND EXTRACT(MONTH FROM fecha) = %s AND EXTRACT(YEAR FROM fecha) = %s
+            """, (session['user_id'], mes, anio_actual))
+        else:
+            cursor.execute("""
+                SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
+                       COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
+                FROM movimientos
+                WHERE usuario_id = %s AND MONTH(fecha) = %s AND YEAR(fecha) = %s
+            """, (session['user_id'], mes, anio_actual))
         resultado = cursor.fetchone()
         ingresos_por_mes.append(float(resultado['ingresos']))
         gastos_por_mes.append(float(resultado['gastos']))
@@ -1296,25 +1334,44 @@ def datos_graficos():
     evolucion_ahorro = []
     
     for mes in range(1, 13):
-        cursor.execute("""
-            SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
-                   COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
-            FROM movimientos
-            WHERE usuario_id = %s AND MONTH(fecha) <= %s AND YEAR(fecha) = %s
-        """, (session['user_id'], mes, anio_actual))
+        if os.environ.get('RENDER'):
+            cursor.execute("""
+                SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
+                       COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
+                FROM movimientos
+                WHERE usuario_id = %s AND EXTRACT(MONTH FROM fecha) <= %s AND EXTRACT(YEAR FROM fecha) = %s
+            """, (session['user_id'], mes, anio_actual))
+        else:
+            cursor.execute("""
+                SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
+                       COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
+                FROM movimientos
+                WHERE usuario_id = %s AND MONTH(fecha) <= %s AND YEAR(fecha) = %s
+            """, (session['user_id'], mes, anio_actual))
         resultado = cursor.fetchone()
         saldo_acumulado = float(resultado['ingresos']) - float(resultado['gastos'])
         evolucion_ahorro.append(saldo_acumulado)
     
-    cursor.execute("""
-        SELECT c.nombre, COUNT(*) as frecuencia, SUM(m.monto) as total
-        FROM movimientos m
-        JOIN categorias c ON m.categoria_id = c.id
-        WHERE m.usuario_id = %s AND m.tipo = 'gasto' AND m.monto < 100
-        GROUP BY c.id, c.nombre
-        ORDER BY frecuencia DESC
-        LIMIT 5
-    """, (session['user_id'],))
+    if os.environ.get('RENDER'):
+        cursor.execute("""
+            SELECT c.nombre, COUNT(*) as frecuencia, SUM(m.monto) as total
+            FROM movimientos m
+            JOIN categorias c ON m.categoria_id = c.id
+            WHERE m.usuario_id = %s AND m.tipo = 'gasto' AND m.monto < 100
+            GROUP BY c.id, c.nombre
+            ORDER BY frecuencia DESC
+            LIMIT 5
+        """, (session['user_id'],))
+    else:
+        cursor.execute("""
+            SELECT c.nombre, COUNT(*) as frecuencia, SUM(m.monto) as total
+            FROM movimientos m
+            JOIN categorias c ON m.categoria_id = c.id
+            WHERE m.usuario_id = %s AND m.tipo = 'gasto' AND m.monto < 100
+            GROUP BY c.id, c.nombre
+            ORDER BY frecuencia DESC
+            LIMIT 5
+        """, (session['user_id'],))
     gastos_hormiga = cursor.fetchall()
     
     cursor.close()
@@ -1330,743 +1387,6 @@ def datos_graficos():
             for g in gastos_hormiga
         ]
     }
-
-# ==================== REPORTES ====================
-@app.route('/reporte-pdf')
-@login_required
-def reporte_pdf():
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from io import BytesIO
-    from flask import make_response
-    from calendar import monthrange
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    user_currency = session.get('default_currency', 'USD')
-    
-    cursor.execute("SELECT nombre, email, telefono, fecha_registro FROM users WHERE id = %s", (session['user_id'],))
-    usuario = cursor.fetchone()
-    
-    mes_actual = datetime.now().month
-    anio_actual = datetime.now().year
-    mes_nombre = datetime(2000, mes_actual, 1).strftime('%B')
-    
-    cursor.execute("""
-        SELECT 
-            COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as total_ingresos,
-            COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as total_gastos,
-            COUNT(*) as total_transacciones
-        FROM movimientos 
-        WHERE usuario_id = %s 
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_actual, anio_actual))
-    resumen_mes = cursor.fetchone()
-    balance = resumen_mes['total_ingresos'] - resumen_mes['total_gastos']
-    
-    dias_mes = monthrange(anio_actual, mes_actual)[1]
-    gasto_diario = resumen_mes['total_gastos'] / dias_mes if dias_mes > 0 else 0
-    
-    mes_anterior = mes_actual - 1 if mes_actual > 1 else 12
-    anio_anterior = anio_actual if mes_actual > 1 else anio_actual - 1
-    
-    cursor.execute("""
-        SELECT 
-            COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as total_ingresos,
-            COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as total_gastos
-        FROM movimientos 
-        WHERE usuario_id = %s 
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_anterior, anio_anterior))
-    mes_anterior_data = cursor.fetchone()
-    
-    variacion_ingresos = ((resumen_mes['total_ingresos'] - mes_anterior_data['total_ingresos']) / mes_anterior_data['total_ingresos'] * 100) if mes_anterior_data['total_ingresos'] > 0 else 0
-    variacion_gastos = ((resumen_mes['total_gastos'] - mes_anterior_data['total_gastos']) / mes_anterior_data['total_gastos'] * 100) if mes_anterior_data['total_gastos'] > 0 else 0
-    
-    cursor.execute("""
-        SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0
-        ORDER BY total DESC
-    """, (session['user_id'], mes_actual, anio_actual))
-    gastos_categoria = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'ingreso' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0
-        ORDER BY total DESC
-    """, (session['user_id'], mes_actual, anio_actual))
-    ingresos_categoria = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT c.nombre as categoria, p.limite, 
-               COALESCE(SUM(m.monto), 0) as gastado,
-               (COALESCE(SUM(m.monto), 0) / p.limite * 100) as porcentaje
-        FROM presupuestos p
-        JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        WHERE p.usuario_id = %s AND p.mes = %s AND p.anio = %s
-        GROUP BY c.id, c.nombre, p.limite
-    """, (session['user_id'], mes_actual, anio_actual, session['user_id'], mes_actual, anio_actual))
-    presupuestos = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT nombre, monto_objetivo, monto_actual, 
-               (monto_actual / monto_objetivo * 100) as porcentaje,
-               fecha_limite
-        FROM metas WHERE usuario_id = %s
-    """, (session['user_id'],))
-    metas = cursor.fetchall()
-    
-    evolucion = []
-    for i in range(5, -1, -1):
-        mes_num = mes_actual - i
-        año_num = anio_actual
-        if mes_num <= 0:
-            mes_num += 12
-            año_num -= 1
-        
-        cursor.execute("""
-            SELECT 
-                COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
-                COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
-            FROM movimientos
-            WHERE usuario_id = %s AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-        """, (session['user_id'], mes_num, año_num))
-        data = cursor.fetchone()
-        evolucion.append({
-            'mes': datetime(2000, mes_num, 1).strftime('%b %Y'),
-            'ingresos': data['ingresos'],
-            'gastos': data['gastos'],
-            'balance': data['ingresos'] - data['gastos']
-        })
-    
-    cursor.execute("""
-        SELECT m.tipo, m.monto, m.descripcion, m.fecha, c.nombre as categoria
-        FROM movimientos m
-        JOIN categorias c ON m.categoria_id = c.id
-        WHERE m.usuario_id = %s
-        ORDER BY m.fecha DESC
-        LIMIT 20
-    """, (session['user_id'],))
-    ultimos_movimientos = cursor.fetchall()
-    
-    cursor.close()
-    conn.close()
-    
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    story = []
-    
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, textColor=colors.HexColor('#1E293B'), alignment=1, spaceAfter=20)
-    section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=16, textColor=colors.HexColor('#3B82F6'), spaceAfter=15, spaceBefore=20)
-    
-    story.append(Paragraph("FinanTrack - Reporte Financiero", title_style))
-    story.append(Paragraph(f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
-    story.append(Paragraph(f"Moneda: {user_currency}", styles['Normal']))
-    story.append(Spacer(1, 20))
-    
-    info_data = [['Información del Usuario', '']]
-    info_data.append(['Nombre', usuario['nombre'] or 'No registrado'])
-    info_data.append(['Email', usuario['email']])
-    info_data.append(['Teléfono', usuario['telefono'] if usuario['telefono'] else 'No registrado'])
-    info_data.append(['Miembro desde', usuario['fecha_registro'].strftime('%d/%m/%Y') if usuario['fecha_registro'] else 'N/A'])
-    info_data.append(['Moneda', user_currency])
-    
-    info_table = Table(info_data, colWidths=[150, 250])
-    info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3B82F6')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F8FAFC')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-    ]))
-    story.append(info_table)
-    story.append(Spacer(1, 20))
-    
-    story.append(Paragraph(f"Resumen del mes - {mes_nombre} {anio_actual}", section_style))
-    
-    resumen_data = [
-        ['Concepto', 'Monto', 'vs mes anterior'],
-        ['Total Ingresos', f'{user_currency} {resumen_mes["total_ingresos"]:,.2f}', f'{variacion_ingresos:+.1f}%'],
-        ['Total Gastos', f'{user_currency} {resumen_mes["total_gastos"]:,.2f}', f'{variacion_gastos:+.1f}%'],
-        ['Balance', f'{user_currency} {balance:,.2f}', ''],
-        ['Gasto diario promedio', f'{user_currency} {gasto_diario:,.2f}', ''],
-        ['Total transacciones', str(resumen_mes['total_transacciones']), '']
-    ]
-    
-    resumen_table = Table(resumen_data, colWidths=[150, 120, 120])
-    resumen_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E293B')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#34D399')),
-        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#F87171')),
-        ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor('#60A5FA')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
-        ('ALIGN', (1, 1), (2, -1), 'RIGHT'),
-    ]))
-    story.append(resumen_table)
-    story.append(Spacer(1, 20))
-    
-    if gastos_categoria:
-        story.append(Paragraph("Gastos por Categoría", section_style))
-        total_gastos_cat = sum(g['total'] for g in gastos_categoria)
-        gastos_data = [['Categoría', 'Monto', '% del total']]
-        for g in gastos_categoria:
-            porcentaje = (g['total'] / total_gastos_cat * 100) if total_gastos_cat > 0 else 0
-            gastos_data.append([g['categoria'], f'{user_currency} {g["total"]:,.2f}', f'{porcentaje:.1f}%'])
-        
-        gastos_table = Table(gastos_data, colWidths=[180, 120, 100])
-        gastos_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F87171')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#FECACA')),
-            ('ALIGN', (1, 1), (2, -1), 'RIGHT'),
-        ]))
-        story.append(gastos_table)
-        story.append(Spacer(1, 15))
-    
-    if presupuestos:
-        story.append(Paragraph("Estado de Presupuestos", section_style))
-        presupuestos_data = [['Categoría', 'Límite', 'Gastado', 'Restante', '%']]
-        for p in presupuestos:
-            restante = p['limite'] - p['gastado']
-            presupuestos_data.append([p['categoria'], f'{user_currency} {p["limite"]:,.2f}', f'{user_currency} {p["gastado"]:,.2f}', f'{user_currency} {restante:,.2f}', f'{p["porcentaje"]:.1f}%'])
-        
-        presupuestos_table = Table(presupuestos_data, colWidths=[120, 100, 100, 100, 70])
-        presupuestos_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#8B5CF6')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-            ('ALIGN', (1, 1), (4, -1), 'RIGHT'),
-        ]))
-        story.append(presupuestos_table)
-        story.append(Spacer(1, 15))
-    
-    if metas:
-        story.append(Paragraph("Metas de Ahorro", section_style))
-        metas_data = [['Meta', 'Objetivo', 'Ahorrado', 'Progreso', 'Fecha límite']]
-        for m in metas:
-            metas_data.append([m['nombre'], f'{user_currency} {m["monto_objetivo"]:,.2f}', f'{user_currency} {m["monto_actual"]:,.2f}', f'{m["porcentaje"]:.1f}%', m['fecha_limite'].strftime('%d/%m/%Y') if m['fecha_limite'] else 'Sin fecha'])
-        
-        metas_table = Table(metas_data, colWidths=[150, 100, 100, 80, 100])
-        metas_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F59E0B')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-            ('ALIGN', (1, 1), (3, -1), 'RIGHT'),
-        ]))
-        story.append(metas_table)
-        story.append(Spacer(1, 15))
-    
-    story.append(Paragraph("Evolución últimos 6 meses", section_style))
-    evolucion_data = [['Mes', 'Ingresos', 'Gastos', 'Balance']]
-    for ev in evolucion:
-        evolucion_data.append([ev['mes'], f'{user_currency} {ev["ingresos"]:,.2f}', f'{user_currency} {ev["gastos"]:,.2f}', f'{user_currency} {ev["balance"]:,.2f}'])
-    
-    evolucion_table = Table(evolucion_data, colWidths=[100, 100, 100, 100])
-    evolucion_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3B82F6')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-        ('ALIGN', (1, 1), (3, -1), 'RIGHT'),
-    ]))
-    story.append(evolucion_table)
-    story.append(Spacer(1, 20))
-    
-    if ultimos_movimientos:
-        story.append(PageBreak())
-        story.append(Paragraph("Últimos Movimientos", section_style))
-        movimientos_data = [['Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto']]
-        for m in ultimos_movimientos:
-            movimientos_data.append([m['fecha'].strftime('%d/%m/%Y'), 'Ingreso' if m['tipo'] == 'ingreso' else 'Gasto', m['categoria'], (m['descripcion'][:40] + '...') if m['descripcion'] and len(m['descripcion']) > 40 else (m['descripcion'] or '-'), f'{user_currency} {m["monto"]:,.2f}'])
-        
-        movimientos_table = Table(movimientos_data, colWidths=[80, 60, 90, 140, 80])
-        movimientos_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E293B')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
-            ('ALIGN', (4, 1), (4, -1), 'RIGHT'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F8FAFC'), colors.HexColor('#FFFFFF')]),
-        ]))
-        story.append(movimientos_table)
-    
-    story.append(Spacer(1, 30))
-    consejo_texto = ""
-    if balance > 500:
-        consejo_texto = "¡Excelente trabajo financiero! Has logrado un ahorro significativo. Considera invertir una parte para hacer crecer tu dinero."
-    elif balance > 0:
-        consejo_texto = f"Vas por buen camino con un ahorro de {user_currency} {balance:,.2f}. Intenta mantener este hábito."
-    elif balance == 0:
-        consejo_texto = "Tus ingresos igualan a tus gastos. Busca pequeñas formas de ahorrar para construir un colchón financiero."
-    else:
-        consejo_texto = f"Tus gastos superan tus ingresos por {user_currency} {abs(balance):,.2f}. Revisa tus gastos hormiga y busca reducir gastos innecesarios."
-    
-    consejo_style = ParagraphStyle('Consejo', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor('#3B82F6'), alignment=1, backColor=colors.HexColor('#EFF6FF'), spaceAfter=10, spaceBefore=10)
-    story.append(Paragraph(consejo_texto, consejo_style))
-    
-    doc.build(story)
-    buffer.seek(0)
-    
-    response = make_response(buffer.getvalue())
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=finantrack_reporte_completo_{datetime.now().strftime("%Y%m%d")}.pdf'
-    
-    return response
-
-@app.route('/reporte-excel')
-@login_required
-def reporte_excel():
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.chart import BarChart, PieChart, Reference
-    from openpyxl.utils import get_column_letter
-    from io import BytesIO
-    from flask import make_response
-    from calendar import monthrange
-    
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    user_currency = session.get('default_currency', 'USD')
-    
-    cursor.execute("SELECT nombre, email, telefono, fecha_registro FROM users WHERE id = %s", (session['user_id'],))
-    usuario = cursor.fetchone()
-    
-    mes_actual = datetime.now().month
-    anio_actual = datetime.now().year
-    mes_nombre = datetime(2000, mes_actual, 1).strftime('%B')
-    
-    cursor.execute("""
-        SELECT 
-            COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as total_ingresos,
-            COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as total_gastos,
-            COUNT(*) as total_transacciones
-        FROM movimientos 
-        WHERE usuario_id = %s 
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_actual, anio_actual))
-    resumen_mes = cursor.fetchone()
-    balance = resumen_mes['total_ingresos'] - resumen_mes['total_gastos']
-    
-    dias_mes = monthrange(anio_actual, mes_actual)[1]
-    gasto_diario = resumen_mes['total_gastos'] / dias_mes if dias_mes > 0 else 0
-    
-    mes_anterior = mes_actual - 1 if mes_actual > 1 else 12
-    anio_anterior = anio_actual if mes_actual > 1 else anio_actual - 1
-    
-    cursor.execute("""
-        SELECT 
-            COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as total_ingresos,
-            COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as total_gastos
-        FROM movimientos 
-        WHERE usuario_id = %s 
-        AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-    """, (session['user_id'], mes_anterior, anio_anterior))
-    mes_anterior_data = cursor.fetchone()
-    
-    cursor.execute("""
-        SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0
-        ORDER BY total DESC
-    """, (session['user_id'], mes_actual, anio_actual))
-    gastos_categoria = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
-        FROM categorias c
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'ingreso' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        GROUP BY c.id, c.nombre
-        HAVING total > 0
-        ORDER BY total DESC
-    """, (session['user_id'], mes_actual, anio_actual))
-    ingresos_categoria = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT c.nombre as categoria, p.limite, 
-               COALESCE(SUM(m.monto), 0) as gastado,
-               (COALESCE(SUM(m.monto), 0) / p.limite * 100) as porcentaje
-        FROM presupuestos p
-        JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN movimientos m ON c.id = m.categoria_id 
-            AND m.tipo = 'gasto' AND m.usuario_id = %s
-            AND MONTH(m.fecha) = %s AND YEAR(m.fecha) = %s
-        WHERE p.usuario_id = %s AND p.mes = %s AND p.anio = %s
-        GROUP BY c.id, c.nombre, p.limite
-    """, (session['user_id'], mes_actual, anio_actual, session['user_id'], mes_actual, anio_actual))
-    presupuestos = cursor.fetchall()
-    
-    cursor.execute("""
-        SELECT nombre, monto_objetivo, monto_actual, 
-               (monto_actual / monto_objetivo * 100) as porcentaje,
-               fecha_limite
-        FROM metas WHERE usuario_id = %s
-    """, (session['user_id'],))
-    metas = cursor.fetchall()
-    
-    evolucion = []
-    for i in range(5, -1, -1):
-        mes_num = mes_actual - i
-        año_num = anio_actual
-        if mes_num <= 0:
-            mes_num += 12
-            año_num -= 1
-        
-        cursor.execute("""
-            SELECT 
-                COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
-                COALESCE(SUM(CASE WHEN tipo = 'gasto' THEN monto ELSE 0 END), 0) as gastos
-            FROM movimientos
-            WHERE usuario_id = %s AND MONTH(fecha) = %s AND YEAR(fecha) = %s
-        """, (session['user_id'], mes_num, año_num))
-        data = cursor.fetchone()
-        evolucion.append({
-            'mes': datetime(2000, mes_num, 1).strftime('%b %Y'),
-            'ingresos': data['ingresos'],
-            'gastos': data['gastos'],
-            'balance': data['ingresos'] - data['gastos']
-        })
-    
-    cursor.execute("""
-        SELECT m.id, m.tipo, m.monto, m.descripcion, m.fecha, c.nombre as categoria
-        FROM movimientos m
-        JOIN categorias c ON m.categoria_id = c.id
-        WHERE m.usuario_id = %s
-        ORDER BY m.fecha DESC
-    """, (session['user_id'],))
-    todos_movimientos = cursor.fetchall()
-    
-    cursor.close()
-    conn.close()
-    
-    wb = openpyxl.Workbook()
-    
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
-    title_font = Font(bold=True, size=14)
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    green_fill = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
-    red_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
-    
-    # Hoja 1: Resumen General
-    ws_resumen = wb.active
-    ws_resumen.title = "Resumen General"
-    
-    ws_resumen['A1'] = f"FINANTRACK - REPORTE FINANCIERO COMPLETO ({user_currency})"
-    ws_resumen['A1'].font = title_font
-    ws_resumen.merge_cells('A1:F1')
-    
-    ws_resumen['A3'] = "Información del Usuario"
-    ws_resumen['A3'].font = Font(bold=True)
-    ws_resumen['A4'] = "Nombre:"
-    ws_resumen['B4'] = usuario['nombre'] or 'No registrado'
-    ws_resumen['A5'] = "Email:"
-    ws_resumen['B5'] = usuario['email']
-    ws_resumen['A6'] = "Teléfono:"
-    ws_resumen['B6'] = usuario['telefono'] if usuario['telefono'] else 'No registrado'
-    ws_resumen['A7'] = "Miembro desde:"
-    ws_resumen['B7'] = usuario['fecha_registro'].strftime('%d/%m/%Y') if usuario['fecha_registro'] else 'N/A'
-    ws_resumen['A8'] = "Moneda:"
-    ws_resumen['B8'] = user_currency
-    ws_resumen['A9'] = "Reporte generado:"
-    ws_resumen['B9'] = datetime.now().strftime('%d/%m/%Y %H:%M')
-    
-    ws_resumen['A11'] = f"Resumen del mes - {mes_nombre} {anio_actual}"
-    ws_resumen['A11'].font = Font(bold=True)
-    
-    resumen_data = [
-        ['Total Ingresos', f'{user_currency} {resumen_mes["total_ingresos"]:,.2f}'],
-        ['Total Gastos', f'{user_currency} {resumen_mes["total_gastos"]:,.2f}'],
-        ['Balance', f'{user_currency} {balance:,.2f}'],
-        ['Gasto diario promedio', f'{user_currency} {gasto_diario:,.2f}'],
-        ['Total transacciones', resumen_mes['total_transacciones']],
-        ['vs mes anterior ingresos', f'{((resumen_mes["total_ingresos"] - mes_anterior_data["total_ingresos"]) / mes_anterior_data["total_ingresos"] * 100):+.1f}%' if mes_anterior_data["total_ingresos"] > 0 else 'N/A'],
-        ['vs mes anterior gastos', f'{((resumen_mes["total_gastos"] - mes_anterior_data["total_gastos"]) / mes_anterior_data["total_gastos"] * 100):+.1f}%' if mes_anterior_data["total_gastos"] > 0 else 'N/A']
-    ]
-    
-    for i, row in enumerate(resumen_data, start=12):
-        ws_resumen[f'A{i}'] = row[0]
-        ws_resumen[f'B{i}'] = row[1]
-        ws_resumen[f'A{i}'].font = Font(bold=True)
-    
-    ws_resumen['A20'] = "Evolución últimos 6 meses"
-    ws_resumen['A20'].font = Font(bold=True)
-    
-    headers_evolucion = ['Mes', 'Ingresos', 'Gastos', 'Balance']
-    for col, header in enumerate(headers_evolucion, 1):
-        cell = ws_resumen.cell(row=21, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
-    
-    for row, ev in enumerate(evolucion, 22):
-        ws_resumen.cell(row=row, column=1, value=ev['mes'])
-        ws_resumen.cell(row=row, column=2, value=ev['ingresos'])
-        ws_resumen.cell(row=row, column=3, value=ev['gastos'])
-        ws_resumen.cell(row=row, column=4, value=ev['balance'])
-        for col in range(1, 5):
-            ws_resumen.cell(row=row, column=col).border = border
-            if col in [2, 3, 4]:
-                ws_resumen.cell(row=row, column=col).number_format = f'"{user_currency} "#,##0.00'
-    
-    if len(evolucion) >= 3:
-        chart = BarChart()
-        chart.title = "Evolución Ingresos vs Gastos"
-        chart.x_axis.title = "Mes"
-        chart.y_axis.title = f"Monto ({user_currency})"
-        data = Reference(ws_resumen, min_col=2, min_row=21, max_row=21 + len(evolucion), max_col=3)
-        labels = Reference(ws_resumen, min_col=1, min_row=22, max_row=21 + len(evolucion))
-        chart.add_data(data, titles_from_data=True)
-        chart.set_categories(labels)
-        chart.width = 15
-        chart.height = 10
-        ws_resumen.add_chart(chart, "G1")
-    
-    for col in ['A', 'B', 'C', 'D', 'E', 'F']:
-        ws_resumen.column_dimensions[col].width = 25
-    
-    # Hoja 2: Gastos por Categoría
-    ws_gastos = wb.create_sheet("Gastos por Categoría")
-    ws_gastos['A1'] = f"GASTOS POR CATEGORÍA ({user_currency})"
-    ws_gastos['A1'].font = title_font
-    ws_gastos.merge_cells('A1:D1')
-    
-    headers_gastos = ['Categoría', 'Monto', '% del total']
-    for col, header in enumerate(headers_gastos, 1):
-        cell = ws_gastos.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
-    
-    total_gastos_cat = sum(g['total'] for g in gastos_categoria)
-    for row, g in enumerate(gastos_categoria, 4):
-        porcentaje = (g['total'] / total_gastos_cat * 100) if total_gastos_cat > 0 else 0
-        ws_gastos.cell(row=row, column=1, value=g['categoria'])
-        ws_gastos.cell(row=row, column=2, value=g['total'])
-        ws_gastos.cell(row=row, column=3, value=porcentaje)
-        for col in range(1, 4):
-            ws_gastos.cell(row=row, column=col).border = border
-            if col == 2:
-                ws_gastos.cell(row=row, column=col).number_format = f'"{user_currency} "#,##0.00'
-            elif col == 3:
-                ws_gastos.cell(row=row, column=col).number_format = '0.00"%'
-    
-    if len(gastos_categoria) >= 2:
-        pie = PieChart()
-        pie.title = f"Distribución de Gastos ({user_currency})"
-        data = Reference(ws_gastos, min_col=2, min_row=3, max_row=3 + len(gastos_categoria), max_col=2)
-        labels = Reference(ws_gastos, min_col=1, min_row=4, max_row=3 + len(gastos_categoria))
-        pie.add_data(data, titles_from_data=True)
-        pie.set_categories(labels)
-        pie.width = 15
-        pie.height = 10
-        ws_gastos.add_chart(pie, "F1")
-    
-    for col in ['A', 'B', 'C']:
-        ws_gastos.column_dimensions[col].width = 20
-    
-    # Hoja 3: Ingresos por Categoría
-    ws_ingresos = wb.create_sheet("Ingresos por Categoría")
-    ws_ingresos['A1'] = f"INGRESOS POR CATEGORÍA ({user_currency})"
-    ws_ingresos['A1'].font = title_font
-    ws_ingresos.merge_cells('A1:C1')
-    
-    headers_ingresos = ['Categoría', 'Monto', '% del total']
-    for col, header in enumerate(headers_ingresos, 1):
-        cell = ws_ingresos.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
-    
-    total_ingresos_cat = sum(i['total'] for i in ingresos_categoria)
-    for row, i in enumerate(ingresos_categoria, 4):
-        porcentaje = (i['total'] / total_ingresos_cat * 100) if total_ingresos_cat > 0 else 0
-        ws_ingresos.cell(row=row, column=1, value=i['categoria'])
-        ws_ingresos.cell(row=row, column=2, value=i['total'])
-        ws_ingresos.cell(row=row, column=3, value=porcentaje)
-        for col in range(1, 4):
-            ws_ingresos.cell(row=row, column=col).border = border
-            if col == 2:
-                ws_ingresos.cell(row=row, column=col).number_format = f'"{user_currency} "#,##0.00'
-            elif col == 3:
-                ws_ingresos.cell(row=row, column=col).number_format = '0.00"%'
-    
-    for col in ['A', 'B', 'C']:
-        ws_ingresos.column_dimensions[col].width = 20
-    
-    # Hoja 4: Presupuestos
-    ws_presupuestos = wb.create_sheet("Presupuestos")
-    ws_presupuestos['A1'] = f"ESTADO DE PRESUPUESTOS ({user_currency})"
-    ws_presupuestos['A1'].font = title_font
-    ws_presupuestos.merge_cells('A1:E1')
-    
-    headers_presupuestos = ['Categoría', 'Límite', 'Gastado', 'Restante', 'Progreso']
-    for col, header in enumerate(headers_presupuestos, 1):
-        cell = ws_presupuestos.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
-    
-    for row, p in enumerate(presupuestos, 4):
-        restante = p['limite'] - p['gastado']
-        ws_presupuestos.cell(row=row, column=1, value=p['categoria'])
-        ws_presupuestos.cell(row=row, column=2, value=p['limite'])
-        ws_presupuestos.cell(row=row, column=3, value=p['gastado'])
-        ws_presupuestos.cell(row=row, column=4, value=restante)
-        ws_presupuestos.cell(row=row, column=5, value=p['porcentaje'])
-        for col in range(1, 6):
-            ws_presupuestos.cell(row=row, column=col).border = border
-            if col in [2, 3, 4]:
-                ws_presupuestos.cell(row=row, column=col).number_format = f'"{user_currency} "#,##0.00'
-            elif col == 5:
-                ws_presupuestos.cell(row=row, column=col).number_format = '0.00"%'
-        if p['gastado'] > p['limite']:
-            for col in range(1, 6):
-                ws_presupuestos.cell(row=row, column=col).fill = red_fill
-    
-    for col in ['A', 'B', 'C', 'D', 'E']:
-        ws_presupuestos.column_dimensions[col].width = 18
-    
-    # Hoja 5: Metas de Ahorro
-    ws_metas = wb.create_sheet("Metas de Ahorro")
-    ws_metas['A1'] = f"METAS DE AHORRO ({user_currency})"
-    ws_metas['A1'].font = title_font
-    ws_metas.merge_cells('A1:E1')
-    
-    headers_metas = ['Meta', 'Objetivo', 'Ahorrado', 'Progreso', 'Fecha límite']
-    for col, header in enumerate(headers_metas, 1):
-        cell = ws_metas.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
-    
-    for row, m in enumerate(metas, 4):
-        ws_metas.cell(row=row, column=1, value=m['nombre'])
-        ws_metas.cell(row=row, column=2, value=m['monto_objetivo'])
-        ws_metas.cell(row=row, column=3, value=m['monto_actual'])
-        ws_metas.cell(row=row, column=4, value=m['porcentaje'])
-        ws_metas.cell(row=row, column=5, value=m['fecha_limite'].strftime('%d/%m/%Y') if m['fecha_limite'] else 'Sin fecha')
-        for col in range(1, 6):
-            ws_metas.cell(row=row, column=col).border = border
-            if col in [2, 3]:
-                ws_metas.cell(row=row, column=col).number_format = f'"{user_currency} "#,##0.00'
-            elif col == 4:
-                ws_metas.cell(row=row, column=col).number_format = '0.00"%'
-        if m['porcentaje'] >= 100:
-            for col in range(1, 6):
-                ws_metas.cell(row=row, column=col).fill = green_fill
-    
-    for col in ['A', 'B', 'C', 'D', 'E']:
-        ws_metas.column_dimensions[col].width = 18
-    
-    # Hoja 6: Todos los Movimientos
-    ws_movimientos = wb.create_sheet("Todos los Movimientos")
-    ws_movimientos['A1'] = f"REGISTRO COMPLETO DE MOVIMIENTOS ({user_currency})"
-    ws_movimientos['A1'].font = title_font
-    ws_movimientos.merge_cells('A1:F1')
-    
-    headers_movimientos = ['ID', 'Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto']
-    for col, header in enumerate(headers_movimientos, 1):
-        cell = ws_movimientos.cell(row=3, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
-    
-    for row, m in enumerate(todos_movimientos, 4):
-        ws_movimientos.cell(row=row, column=1, value=m['id'])
-        ws_movimientos.cell(row=row, column=2, value=m['fecha'].strftime('%d/%m/%Y'))
-        ws_movimientos.cell(row=row, column=3, value="Ingreso" if m['tipo'] == 'ingreso' else "Gasto")
-        ws_movimientos.cell(row=row, column=4, value=m['categoria'])
-        ws_movimientos.cell(row=row, column=5, value=m['descripcion'] if m['descripcion'] else '-')
-        ws_movimientos.cell(row=row, column=6, value=m['monto'])
-        for col in range(1, 7):
-            ws_movimientos.cell(row=row, column=col).border = border
-            if col == 6:
-                ws_movimientos.cell(row=row, column=col).number_format = f'"{user_currency} "#,##0.00'
-        if m['tipo'] == 'ingreso':
-            for col in range(1, 7):
-                ws_movimientos.cell(row=row, column=col).fill = green_fill
-        else:
-            for col in range(1, 7):
-                ws_movimientos.cell(row=row, column=col).fill = red_fill
-    
-    for col in range(1, 7):
-        ws_movimientos.column_dimensions[get_column_letter(col)].width = 20
-    
-    # Hoja 7: Consejos
-    ws_consejos = wb.create_sheet("Consejos")
-    ws_consejos['A1'] = "CONSEJOS FINANCIEROS PERSONALIZADOS"
-    ws_consejos['A1'].font = title_font
-    ws_consejos.merge_cells('A1:B1')
-    
-    consejos = []
-    if balance > 500:
-        consejos.append(["🏆 Excelente ahorro", f"Has ahorrado {user_currency} {balance:,.2f} este mes. Considera invertir una parte en CETES o fondos de inversión."])
-        consejos.append(["💡 Inversión recomendada", "Con este nivel de ahorro, podrías comenzar a invertir en instrumentos de bajo riesgo."])
-    elif balance > 0:
-        consejos.append(["👍 Buen trabajo", f"Has ahorrado {user_currency} {balance:,.2f} este mes. Intenta aumentar tu ahorro en un 10% el próximo mes."])
-        consejos.append(["💡 Meta realista", "Establece una meta de ahorro del 20% de tus ingresos para construir un fondo de emergencia."])
-    elif balance == 0:
-        consejos.append(["⚠️ Balance en cero", "Tus ingresos igualan a tus gastos. Busca reducir gastos hormiga."])
-        consejos.append(["💡 Gastos hormiga", "Revisa suscripciones que no uses, comidas fuera de casa y compras impulsivas."])
-    else:
-        consejos.append(["🚨 Alerta financiera", f"Tus gastos superan tus ingresos por {user_currency} {abs(balance):,.2f}. ¡Es momento de hacer cambios!"])
-        consejos.append(["💡 Plan de acción", "Prioriza gastos esenciales, elimina gastos innecesarios y busca fuentes extras de ingreso."])
-    
-    if gastos_categoria:
-        mayor_gasto = gastos_categoria[0]
-        total_gastos_cat = sum(g['total'] for g in gastos_categoria)
-        consejos.append([f"📊 Tu mayor gasto es {mayor_gasto['categoria']}", f"Representa el {(mayor_gasto['total'] / total_gastos_cat * 100):.1f}% de tus gastos. ¿Puedes reducirlo?"])
-    
-    presupuestos_excedidos = [p for p in presupuestos if p['gastado'] > p['limite']]
-    if presupuestos_excedidos:
-        consejos.append(["⚠️ Presupuestos excedidos", f"Has excedido el presupuesto en {len(presupuestos_excedidos)} categoría(s). Revisa: " + ", ".join(p['categoria'] for p in presupuestos_excedidos)])
-    
-    metas_cumplidas = [m for m in metas if m['porcentaje'] >= 100]
-    if metas_cumplidas:
-        consejos.append(["🎉 Metas cumplidas", f"¡Felicidades! Has cumplido {len(metas_cumplidas)} meta(s) de ahorro."])
-    
-    for row, (titulo, consejo) in enumerate(consejos, 3):
-        ws_consejos.cell(row=row, column=1, value=titulo)
-        ws_consejos.cell(row=row, column=2, value=consejo)
-        ws_consejos.cell(row=row, column=1).font = Font(bold=True)
-        for col in range(1, 3):
-            ws_consejos.cell(row=row, column=col).border = border
-            ws_consejos.cell(row=row, column=col).alignment = Alignment(wrap_text=True, vertical='top')
-    
-    ws_consejos.column_dimensions['A'].width = 25
-    ws_consejos.column_dimensions['B'].width = 50
-    
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    
-    response = make_response(buffer.getvalue())
-    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=finantrack_reporte_completo_{datetime.now().strftime("%Y%m%d")}.xlsx'
-    
-    return response
 
 # ==================== LOGOUT ====================
 @app.route('/logout')
@@ -2102,20 +1422,34 @@ def test_db():
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT VERSION()")
-        version = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM users")
-        count = cursor.fetchone()[0]
+        if os.environ.get('RENDER'):
+            cursor.execute("SELECT version()")
+            version = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM users")
+            count = cursor.fetchone()[0]
+        else:
+            cursor.execute("SELECT VERSION()")
+            version = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM users")
+            count = cursor.fetchone()[0]
         cursor.close()
         conn.close()
-        return f"MySQL OK - Version: {version} - Usuarios: {count}"
+        return f"DB OK - Version: {version} - Usuarios: {count}"
     else:
-        return "Error de conexion a MySQL"
+        return "Error de conexion a la base de datos"
 
+# ==================== INICIALIZAR BASE DE DATOS ====================
+from init_db_app import initialize_database
+
+# Inicializar la base de datos según el entorno
+initialize_database()
+
+# ==================== INICIAR APLICACIÓN ====================
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("FINANTRACK - Control de Gastos Personales")
     print("="*60)
+    print(f"🌍 Entorno: {'Render' if os.environ.get('RENDER') else 'Desarrollo Local'}")
     print("Servidor: http://127.0.0.1:5000")
     print("Registro: http://127.0.0.1:5000/register")
     print("Divisas: http://127.0.0.1:5000/configuracion-divisas")
