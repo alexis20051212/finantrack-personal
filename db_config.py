@@ -2,39 +2,52 @@ import os
 import mysql.connector
 from mysql.connector import Error
 import psycopg2
-import sqlite3
-import re
 
 def get_db_connection():
     """Establece conexión según el entorno"""
     
     # En Render con PostgreSQL
     if os.environ.get('RENDER'):
+        print("🔄 Modo Render: Conectando a PostgreSQL...")
         return get_postgres_connection()
     
-    # En desarrollo con MySQL
+    # En desarrollo local con MySQL
+    print("🔄 Modo Desarrollo: Conectando a MySQL...")
     return get_mysql_connection()
 
 def get_postgres_connection():
-    """Conectar a PostgreSQL (producción en Render)"""
+    """Conectar a PostgreSQL en Render"""
     try:
-        # Obtener la URL de la base de datos
         database_url = os.environ.get('DATABASE_URL')
         
         if not database_url:
-            print("❌ No se encontró DATABASE_URL en variables de entorno")
-            return None
+            print("❌ No se encontró DATABASE_URL")
+            # Intentar conectar con variables individuales
+            return get_postgres_from_individual()
         
-        print(f"✅ Conectando a PostgreSQL...")
-        
-        # Conectar usando la URL directamente
+        print("✅ Conectando a PostgreSQL con DATABASE_URL...")
         conn = psycopg2.connect(database_url)
-        
         print("✅ Conexión a PostgreSQL establecida")
         return conn
         
     except Exception as e:
         print(f"❌ Error de conexión a PostgreSQL: {e}")
+        return None
+
+def get_postgres_from_individual():
+    """Conectar usando variables individuales de entorno"""
+    try:
+        conn = psycopg2.connect(
+            host=os.environ.get('PGHOST', 'localhost'),
+            port=os.environ.get('PGPORT', 5432),
+            user=os.environ.get('PGUSER', 'postgres'),
+            password=os.environ.get('PGPASSWORD', ''),
+            database=os.environ.get('PGDATABASE', 'postgres')
+        )
+        print("✅ Conexión a PostgreSQL establecida (variables individuales)")
+        return conn
+    except Exception as e:
+        print(f"❌ Error con variables individuales: {e}")
         return None
 
 def get_mysql_connection():
@@ -58,8 +71,11 @@ def get_mysql_connection():
 def init_db():
     """Inicializa la base de datos según el entorno"""
     if os.environ.get('RENDER'):
+        print("🔄 Inicializando PostgreSQL en Render...")
         return init_postgres_db()
-    return init_mysql_db()
+    else:
+        print("🔄 Inicializando MySQL en desarrollo...")
+        return init_mysql_db()
 
 def init_postgres_db():
     """Inicializa PostgreSQL en Render"""
@@ -72,6 +88,7 @@ def init_postgres_db():
         cursor = conn.cursor()
         
         # Crear tablas en PostgreSQL
+        print("📦 Creando tablas en PostgreSQL...")
         create_tables_postgres(cursor)
         
         conn.commit()
@@ -96,6 +113,7 @@ def init_mysql_db():
         cursor.execute("CREATE DATABASE IF NOT EXISTS FinanTrackDB")
         cursor.execute("USE FinanTrackDB")
         
+        print("📦 Creando tablas en MySQL...")
         create_tables_mysql(cursor)
         
         conn.commit()
@@ -146,8 +164,53 @@ def create_tables_mysql(cursor):
         FOREIGN KEY (categoria_id) REFERENCES categorias(id)
     )''')
     
-    # Agregar más tablas según tu modelo...
-    # (metas, presupuestos, recordatorios, notificaciones)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS metas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        nombre VARCHAR(100) NOT NULL,
+        monto_objetivo DECIMAL(10,2) NOT NULL,
+        monto_actual DECIMAL(10,2) DEFAULT 0,
+        fecha_limite DATE,
+        currency VARCHAR(10) DEFAULT 'USD',
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
+    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        categoria_id INT NOT NULL,
+        mes INT NOT NULL,
+        anio INT NOT NULL,
+        limite DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(10) DEFAULT 'USD',
+        FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (categoria_id) REFERENCES categorias(id),
+        UNIQUE KEY unique_presupuesto (usuario_id, categoria_id, mes, anio)
+    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS recordatorios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        titulo VARCHAR(100) NOT NULL,
+        descripcion TEXT,
+        fecha DATE NOT NULL,
+        tipo ENUM('pago', 'recordatorio', 'meta') DEFAULT 'recordatorio',
+        completado BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
+    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS notificaciones (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        mensaje TEXT NOT NULL,
+        tipo ENUM('exito', 'alerta', 'info', 'peligro') DEFAULT 'info',
+        leido BOOLEAN DEFAULT FALSE,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
+    )''')
+    
+    print("✅ Tablas MySQL creadas/verificadas")
 
 def create_tables_postgres(cursor):
     """Crear tablas en PostgreSQL"""
@@ -189,10 +252,48 @@ def create_tables_postgres(cursor):
         currency VARCHAR(10) DEFAULT 'USD'
     )''')
     
-    # Agregar más tablas según tu modelo...
-    # (metas, presupuestos, recordatorios, notificaciones)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS metas (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        nombre VARCHAR(100) NOT NULL,
+        monto_objetivo DECIMAL(10,2) NOT NULL,
+        monto_actual DECIMAL(10,2) DEFAULT 0,
+        fecha_limite DATE,
+        currency VARCHAR(10) DEFAULT 'USD',
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS presupuestos (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        categoria_id INT NOT NULL REFERENCES categorias(id),
+        mes INT NOT NULL,
+        anio INT NOT NULL,
+        limite DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(10) DEFAULT 'USD',
+        UNIQUE(usuario_id, categoria_id, mes, anio)
+    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS recordatorios (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        titulo VARCHAR(100) NOT NULL,
+        descripcion TEXT,
+        fecha DATE NOT NULL,
+        tipo VARCHAR(20) DEFAULT 'recordatorio',
+        completado BOOLEAN DEFAULT FALSE
+    )''')
+    
+    cursor.execute('''CREATE TABLE IF NOT EXISTS notificaciones (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        mensaje TEXT NOT NULL,
+        tipo VARCHAR(20) DEFAULT 'info',
+        leido BOOLEAN DEFAULT FALSE,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    print("✅ Tablas PostgreSQL creadas/verificadas")
 
-# Inicializar la base de datos al importar
-if __name__ != '__main__':
-    # Solo inicializar si no estamos en el script principal
-    init_db()
+# Inicializar la base de datos
+init_db()
