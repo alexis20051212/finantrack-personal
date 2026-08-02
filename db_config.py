@@ -3,6 +3,7 @@ import mysql.connector
 from mysql.connector import Error
 import psycopg2
 import sqlite3
+import re
 
 def get_db_connection():
     """Establece conexión según el entorno"""
@@ -14,37 +15,45 @@ def get_db_connection():
     # En desarrollo con MySQL
     return get_mysql_connection()
 
-def get_mysql_connection():
-    """Conectar a MySQL (desarrollo)"""
+def get_postgres_connection():
+    """Conectar a PostgreSQL (producción en Render)"""
     try:
-        from config import Config
-        config = Config()
-        connection = mysql.connector.connect(**config.DB_CONFIG)
+        # Obtener la URL de la base de datos
+        database_url = os.environ.get('DATABASE_URL')
+        
+        if not database_url:
+            print("❌ No se encontró DATABASE_URL en variables de entorno")
+            return None
+        
+        print(f"✅ Conectando a PostgreSQL...")
+        
+        # Conectar usando la URL directamente
+        conn = psycopg2.connect(database_url)
+        
+        print("✅ Conexión a PostgreSQL establecida")
+        return conn
+        
+    except Exception as e:
+        print(f"❌ Error de conexión a PostgreSQL: {e}")
+        return None
+
+def get_mysql_connection():
+    """Conectar a MySQL (desarrollo local)"""
+    try:
+        connection = mysql.connector.connect(
+            host='localhost',
+            user='root',
+            password='jisa2005',
+            database='FinanTrackDB',
+            port=3306
+        )
         if connection.is_connected():
+            print("✅ Conexión a MySQL establecida")
             return connection
     except Error as e:
         print(f"❌ Error de conexión a MySQL: {e}")
         return None
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return None
-
-def get_postgres_connection():
-    """Conectar a PostgreSQL (producción en Render)"""
-    try:
-        from config import Config
-        config = Config()
-        conn = psycopg2.connect(
-            host=config.DB_CONFIG['host'],
-            user=config.DB_CONFIG['user'],
-            password=config.DB_CONFIG['password'],
-            database=config.DB_CONFIG['database'],
-            port=config.DB_CONFIG['port']
-        )
-        return conn
-    except Exception as e:
-        print(f"❌ Error de conexión a PostgreSQL: {e}")
-        return None
+    return None
 
 def init_db():
     """Inicializa la base de datos según el entorno"""
@@ -52,10 +61,31 @@ def init_db():
         return init_postgres_db()
     return init_mysql_db()
 
-def init_mysql_db():
-    """Inicializa MySQL (desarrollo)"""
+def init_postgres_db():
+    """Inicializa PostgreSQL en Render"""
     try:
-        import mysql.connector
+        conn = get_postgres_connection()
+        if not conn:
+            print("❌ No se pudo conectar a PostgreSQL")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Crear tablas en PostgreSQL
+        create_tables_postgres(cursor)
+        
+        conn.commit()
+        conn.close()
+        print("✅ Base de datos PostgreSQL inicializada correctamente")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error inicializando PostgreSQL: {e}")
+        return False
+
+def init_mysql_db():
+    """Inicializa MySQL (desarrollo local)"""
+    try:
         conn = mysql.connector.connect(
             host='localhost',
             user='root',
@@ -66,32 +96,15 @@ def init_mysql_db():
         cursor.execute("CREATE DATABASE IF NOT EXISTS FinanTrackDB")
         cursor.execute("USE FinanTrackDB")
         
-        # Crear todas las tablas (usando tu código existente)
         create_tables_mysql(cursor)
         
         conn.commit()
         conn.close()
         print("✅ Base de datos MySQL inicializada correctamente")
         return True
+        
     except Exception as e:
         print(f"❌ Error inicializando MySQL: {e}")
-        return False
-
-def init_postgres_db():
-    """Inicializa PostgreSQL (producción)"""
-    try:
-        conn = get_postgres_connection()
-        cursor = conn.cursor()
-        
-        # Crear tablas en PostgreSQL
-        create_tables_postgres(cursor)
-        
-        conn.commit()
-        conn.close()
-        print("✅ Base de datos PostgreSQL inicializada correctamente")
-        return True
-    except Exception as e:
-        print(f"❌ Error inicializando PostgreSQL: {e}")
         return False
 
 def create_tables_mysql(cursor):
@@ -133,7 +146,8 @@ def create_tables_mysql(cursor):
         FOREIGN KEY (categoria_id) REFERENCES categorias(id)
     )''')
     
-    # Resto de tablas (metas, presupuestos, etc.)
+    # Agregar más tablas según tu modelo...
+    # (metas, presupuestos, recordatorios, notificaciones)
 
 def create_tables_postgres(cursor):
     """Crear tablas en PostgreSQL"""
@@ -159,7 +173,10 @@ def create_tables_postgres(cursor):
         'Mascotas', 'Regalos', 'Suscripciones', 'Deportes', 'Viajes', 'Tecnología'
     ]
     for cat in categorias:
-        cursor.execute("INSERT INTO categorias (nombre) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nombre = %s)", (cat, cat))
+        cursor.execute(
+            "INSERT INTO categorias (nombre) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM categorias WHERE nombre = %s)",
+            (cat, cat)
+        )
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS movimientos (
         id SERIAL PRIMARY KEY,
@@ -172,7 +189,10 @@ def create_tables_postgres(cursor):
         currency VARCHAR(10) DEFAULT 'USD'
     )''')
     
-    # Resto de tablas (metas, presupuestos, etc.)
+    # Agregar más tablas según tu modelo...
+    # (metas, presupuestos, recordatorios, notificaciones)
 
-# Inicializar la base de datos
-init_db()
+# Inicializar la base de datos al importar
+if __name__ != '__main__':
+    # Solo inicializar si no estamos en el script principal
+    init_db()
