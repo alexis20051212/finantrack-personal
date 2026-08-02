@@ -1,9 +1,10 @@
 import os
 from db_config import init_db, get_db_connection
 
+
 def initialize_database():
     """Inicializa la base de datos solo si es necesario"""
-    
+
     # En Render, verificar si las tablas existen
     if os.environ.get('RENDER'):
         print("🚀 Inicializando en Render...")
@@ -14,15 +15,15 @@ def initialize_database():
                 # Verificar si existe la tabla users
                 cursor.execute("""
                     SELECT EXISTS (
-                        SELECT 1 
-                        FROM information_schema.tables 
+                        SELECT 1
+                        FROM information_schema.tables
                         WHERE table_name = 'users'
                     );
                 """)
                 exists = cursor.fetchone()[0]
                 cursor.close()
                 conn.close()
-                
+
                 if not exists:
                     print("🔄 Creando tablas por primera vez...")
                     init_db()
@@ -38,6 +39,7 @@ def initialize_database():
         # En desarrollo local, inicializar MySQL
         print("🖥️ Inicializando MySQL en desarrollo...")
         init_db()
+
 
 # Llamar a la función de inicialización
 if __name__ == "__main__":
