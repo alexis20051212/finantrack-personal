@@ -8,7 +8,7 @@ from calendar import monthrange
 from io import BytesIO
 from exchange_api import exchange_api, COMMON_CURRENCIES
 from fred_api import fred_api, FRED_SERIES
-from db_config import get_db_connection, init_db
+from db_config import get_db_connection
 app = Flask(__name__)
 app.secret_key = 'FinanTrack_MySQL_Clave_Segura_2024'
 

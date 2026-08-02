@@ -22,32 +22,15 @@ def get_postgres_connection():
         
         if not database_url:
             print("❌ No se encontró DATABASE_URL")
-            # Intentar conectar con variables individuales
-            return get_postgres_from_individual()
+            return None
         
-        print("✅ Conectando a PostgreSQL con DATABASE_URL...")
+        print("✅ Conectando a PostgreSQL...")
         conn = psycopg2.connect(database_url)
         print("✅ Conexión a PostgreSQL establecida")
         return conn
         
     except Exception as e:
         print(f"❌ Error de conexión a PostgreSQL: {e}")
-        return None
-
-def get_postgres_from_individual():
-    """Conectar usando variables individuales de entorno"""
-    try:
-        conn = psycopg2.connect(
-            host=os.environ.get('PGHOST', 'localhost'),
-            port=os.environ.get('PGPORT', 5432),
-            user=os.environ.get('PGUSER', 'postgres'),
-            password=os.environ.get('PGPASSWORD', ''),
-            database=os.environ.get('PGDATABASE', 'postgres')
-        )
-        print("✅ Conexión a PostgreSQL establecida (variables individuales)")
-        return conn
-    except Exception as e:
-        print(f"❌ Error con variables individuales: {e}")
         return None
 
 def get_mysql_connection():
@@ -78,7 +61,7 @@ def init_db():
         return init_mysql_db()
 
 def init_postgres_db():
-    """Inicializa PostgreSQL en Render"""
+    """Inicializa PostgreSQL en Render (solo se ejecuta UNA VEZ)"""
     try:
         conn = get_postgres_connection()
         if not conn:
@@ -87,7 +70,6 @@ def init_postgres_db():
         
         cursor = conn.cursor()
         
-        # Crear tablas en PostgreSQL
         print("📦 Creando tablas en PostgreSQL...")
         create_tables_postgres(cursor)
         
@@ -295,5 +277,26 @@ def create_tables_postgres(cursor):
     
     print("✅ Tablas PostgreSQL creadas/verificadas")
 
-# Inicializar la base de datos
-init_db()
+# ==================== INICIALIZAR LA BASE DE DATOS ====================
+# Solo si estamos en desarrollo local (MySQL) o la primera vez en Render
+if not os.environ.get('RENDER'):
+    # En desarrollo local, inicializar MySQL
+    init_db()
+else:
+    # En Render, inicializar PostgreSQL solo si no existe la tabla users
+    try:
+        conn = get_postgres_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')")
+            exists = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+            
+            if not exists:
+                print("🔄 Creando tablas en PostgreSQL por primera vez...")
+                init_postgres_db()
+            else:
+                print("✅ Tablas PostgreSQL ya existen, omitiendo inicialización")
+    except Exception as e:
+        print(f"⚠️ Error verificando tablas: {e}")
