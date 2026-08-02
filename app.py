@@ -10,9 +10,24 @@ from exchange_api import exchange_api, COMMON_CURRENCIES
 from fred_api import fred_api, FRED_SERIES
 from db_config import get_db_connection, get_dict_cursor
 import os
+import sys
+import traceback
+import logging
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'FinanTrack_MySQL_Clave_Segura_2024')
+
+# Asegura que los tracebacks completos se impriman en los logs (stdout),
+# sin importar si corre con `python app.py`, gunicorn, o cualquier WSGI server.
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+@app.errorhandler(Exception)
+def handle_uncaught_exception(e):
+    print("=" * 70, file=sys.stderr, flush=True)
+    print("❌ ERROR NO CAPTURADO:", file=sys.stderr, flush=True)
+    traceback.print_exc(file=sys.stderr)
+    sys.stderr.flush()
+    return "Error interno. Revisa los logs para el detalle.", 500
 
 # ==================== DECORADOR ====================
 def login_required(f):
