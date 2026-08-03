@@ -856,9 +856,13 @@ def listar_metas():
         
         # Procesar cada meta en Python (compatible con ambos motores)
         for meta in metas:
+            # Convertir Decimal a float si es necesario
+            monto_objetivo = float(meta['monto_objetivo']) if meta['monto_objetivo'] is not None else 0
+            monto_actual = float(meta['monto_actual']) if meta['monto_actual'] is not None else 0
+            
             # Calcular porcentaje
-            if meta['monto_objetivo'] and meta['monto_objetivo'] > 0:
-                meta['porcentaje'] = round((meta['monto_actual'] / meta['monto_objetivo'] * 100), 2)
+            if monto_objetivo > 0:
+                meta['porcentaje'] = round((monto_actual / monto_objetivo * 100), 2)
             else:
                 meta['porcentaje'] = 0
             
@@ -948,7 +952,7 @@ def aportar_meta(id):
             flash('Meta no encontrada', 'danger')
             return redirect(url_for('listar_metas'))
         
-        # Extraer y convertir valores
+        # Extraer y convertir valores - CORRECCIÓN: Convertir Decimal a float
         meta_id = int(meta[0])
         monto_objetivo = float(str(meta[1])) if meta[1] is not None else 0.0
         monto_actual = float(str(meta[2])) if meta[2] is not None else 0.0
@@ -963,7 +967,7 @@ def aportar_meta(id):
             WHERE id = %s AND usuario_id = %s
         """, (nuevo_monto, meta_id, session['user_id']))
         
-        # Insertar aportación
+        # Insertar aportación con fecha como string
         fecha_actual = datetime.now().strftime('%Y-%m-%d')
         cursor.execute("""
             INSERT INTO aportaciones_meta (meta_id, monto, fecha, descripcion)
@@ -974,7 +978,7 @@ def aportar_meta(id):
         cursor.close()
         conn.close()
         
-        # Notificar
+        # Notificar según el progreso
         if nuevo_monto >= monto_objetivo:
             crear_notificacion(
                 session['user_id'], 
@@ -1001,7 +1005,7 @@ def aportar_meta(id):
         print(f"Error registrando aportación: {e}")
         import traceback
         traceback.print_exc()
-        flash('Error al registrar la aportación', 'danger')
+        flash('Error al registrar la aportación. Por favor, intenta de nuevo.', 'danger')
         if 'conn' in locals() and conn:
             conn.close()
         return redirect(url_for('listar_metas'))
@@ -1829,14 +1833,14 @@ def reporte_pdf():
             """, (session['user_id'], mes_actual, anio_actual, session['user_id'], mes_actual, anio_actual))
         presupuestos = cursor.fetchall()
         
-        # Metas - obtener y procesar en Python
+        # Metas
         cursor.execute("""
             SELECT nombre, monto_objetivo, monto_actual, fecha_limite
             FROM metas WHERE usuario_id = %s
         """, (session['user_id'],))
         metas = cursor.fetchall()
         
-        # Procesar metas en Python para evitar problemas de compatibilidad
+        # Procesar metas en Python
         for meta in metas:
             if meta['monto_objetivo'] and meta['monto_objetivo'] > 0:
                 meta['porcentaje'] = (meta['monto_actual'] / meta['monto_objetivo'] * 100)
@@ -1900,9 +1904,7 @@ def reporte_pdf():
         cursor.close()
         conn.close()
         
-        # Generar PDF - (el código de generación de PDF es extenso, pero se mantiene igual)
-        # ... [código de generación de PDF aquí] ...
-        
+        # Generar PDF
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
         styles = getSampleStyleSheet()
@@ -2309,7 +2311,7 @@ def reporte_excel():
         cursor.close()
         conn.close()
         
-        # Crear libro de Excel - (el código de generación de Excel es extenso, pero se mantiene igual)
+        # Crear libro de Excel
         wb = openpyxl.Workbook()
         
         header_font = Font(bold=True, color="FFFFFF")
