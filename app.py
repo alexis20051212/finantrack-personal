@@ -916,13 +916,11 @@ def nueva_meta():
 @app.route('/metas/aportar/<int:id>', methods=['POST'])
 @login_required
 def aportar_meta(id):
-    import traceback
-    print(f"🔍 Iniciando aportación para meta ID: {id}")
-    
     try:
-        monto = float(request.form.get('monto'))
+        # Obtener y validar el monto
+        monto_str = request.form.get('monto', '0')
+        monto = float(monto_str)
         descripcion = request.form.get('descripcion', '')
-        print(f"💰 Monto: {monto}, Descripción: {descripcion}")
         
         if monto <= 0:
             flash('El monto debe ser mayor a 0', 'danger')
@@ -930,83 +928,80 @@ def aportar_meta(id):
         
         conn = get_db_connection()
         if not conn:
-            print("❌ Error: No se pudo conectar a la base de datos")
             flash('Error de conexión a la base de datos', 'danger')
             return redirect(url_for('listar_metas'))
         
         cursor = conn.cursor()
         
-        # 1. Verificar que la meta existe
-        print(f"🔍 Verificando meta ID: {id} para usuario: {session['user_id']}")
-        cursor.execute("SELECT id, monto_objetivo, monto_actual FROM metas WHERE id = %s AND usuario_id = %s", (id, session['user_id']))
+        # Verificar la meta
+        cursor.execute("""
+            SELECT id, monto_objetivo, monto_actual 
+            FROM metas 
+            WHERE id = %s AND usuario_id = %s
+        """, (id, session['user_id']))
+        
         meta = cursor.fetchone()
         
         if not meta:
-            print("❌ Meta no encontrada")
             cursor.close()
             conn.close()
             flash('Meta no encontrada', 'danger')
             return redirect(url_for('listar_metas'))
         
-        print(f"✅ Meta encontrada: Objetivo={meta[1]}, Actual={meta[2]}")
+        # Extraer y convertir valores
+        meta_id = int(meta[0])
+        monto_objetivo = float(str(meta[1])) if meta[1] is not None else 0.0
+        monto_actual = float(str(meta[2])) if meta[2] is not None else 0.0
         
-        # 2. Calcular nuevo monto
-        nuevo_monto = meta[2] + monto
-        print(f"📊 Nuevo monto: {nuevo_monto}")
+        # Calcular nuevo monto
+        nuevo_monto = monto_actual + monto
         
-        # 3. Actualizar la meta
-        print("🔄 Actualizando meta...")
+        # Actualizar la meta
         cursor.execute("""
             UPDATE metas 
             SET monto_actual = %s
             WHERE id = %s AND usuario_id = %s
-        """, (nuevo_monto, id, session['user_id']))
-        print("✅ Meta actualizada")
+        """, (nuevo_monto, meta_id, session['user_id']))
         
-        # 4. Insertar la aportación
+        # Insertar aportación
         fecha_actual = datetime.now().strftime('%Y-%m-%d')
-        print(f"📅 Fecha: {fecha_actual}")
-        
-        print("🔄 Insertando aportación...")
         cursor.execute("""
             INSERT INTO aportaciones_meta (meta_id, monto, fecha, descripcion)
             VALUES (%s, %s, %s, %s)
-        """, (id, monto, fecha_actual, descripcion))
-        print("✅ Aportación insertada")
+        """, (meta_id, monto, fecha_actual, descripcion))
         
         conn.commit()
-        print("✅ Transacción completada")
-        
         cursor.close()
         conn.close()
         
-        # 5. Notificar
-        if nuevo_monto >= meta[1]:
+        # Notificar
+        if nuevo_monto >= monto_objetivo:
             crear_notificacion(
                 session['user_id'], 
-                f"🎉 ¡Felicidades! Has completado tu meta de ahorro de ${meta[1]:,.2f}!", 
+                f"🎉 ¡Meta completada! Ahorraste ${nuevo_monto:,.2f} de ${monto_objetivo:,.2f}", 
                 'exito'
             )
             flash('🎉 ¡Meta completada! Felicitaciones.', 'success')
         else:
-            porcentaje = (nuevo_monto / meta[1] * 100) if meta[1] > 0 else 0
+            porcentaje = (nuevo_monto / monto_objetivo * 100) if monto_objetivo > 0 else 0
             crear_notificacion(
                 session['user_id'], 
-                f"Aportaste ${monto:,.2f}. Progreso: {porcentaje:.1f}% (${nuevo_monto:,.2f} de ${meta[1]:,.2f})", 
+                f"Aportaste ${monto:,.2f}. Progreso: {porcentaje:.1f}%", 
                 'info'
             )
-            flash('¡Aportación registrada exitosamente!', 'success')
+            flash(f'¡Aportación de ${monto:,.2f} registrada!', 'success')
         
         return redirect(url_for('listar_metas'))
         
     except ValueError as e:
-        print(f"❌ Error de valor: {e}")
+        print(f"Error de valor: {e}")
         flash('El monto ingresado no es válido', 'danger')
         return redirect(url_for('listar_metas'))
     except Exception as e:
-        print(f"❌ Error registrando aportación: {e}")
-        print(traceback.format_exc())
-        flash(f'Error al registrar la aportación: {str(e)}', 'danger')
+        print(f"Error registrando aportación: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error al registrar la aportación', 'danger')
         if 'conn' in locals() and conn:
             conn.close()
         return redirect(url_for('listar_metas'))
