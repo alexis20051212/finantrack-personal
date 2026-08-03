@@ -841,32 +841,40 @@ def listar_metas():
         cursor = get_dict_cursor(conn)
         user_currency = session.get('default_currency', 'USD')
         
-        if os.environ.get('RENDER'):
-            cursor.execute("""
-                SELECT m.*, 
-                       (m.monto_actual / NULLIF(m.monto_objetivo, 0) * 100) as porcentaje,
-                       EXTRACT(DAY FROM (m.fecha_limite - CURRENT_DATE)) as dias_restantes
-                FROM metas m
-                WHERE m.usuario_id = %s
-                ORDER BY (m.monto_actual / NULLIF(m.monto_objetivo, 0)) ASC
-            """, (session['user_id'],))
-        else:
-            cursor.execute("""
-                SELECT m.*, 
-                       (m.monto_actual / NULLIF(m.monto_objetivo, 0) * 100) as porcentaje,
-                       DATEDIFF(m.fecha_limite, CURDATE()) as dias_restantes
-                FROM metas m
-                WHERE m.usuario_id = %s
-                ORDER BY (m.monto_actual / NULLIF(m.monto_objetivo, 0)) ASC
-            """, (session['user_id'],))
+        # Obtener todas las metas sin cálculos complejos en SQL
+        cursor.execute("""
+            SELECT id, usuario_id, nombre, monto_objetivo, monto_actual, 
+                   fecha_limite, currency, fecha_creacion
+            FROM metas 
+            WHERE usuario_id = %s
+            ORDER BY id DESC
+        """, (session['user_id'],))
         
         metas = cursor.fetchall()
         cursor.close()
         conn.close()
         
+        # Procesar cada meta en Python (compatible con ambos motores)
+        for meta in metas:
+            # Calcular porcentaje
+            if meta['monto_objetivo'] and meta['monto_objetivo'] > 0:
+                meta['porcentaje'] = round((meta['monto_actual'] / meta['monto_objetivo'] * 100), 2)
+            else:
+                meta['porcentaje'] = 0
+            
+            # Calcular días restantes
+            if meta['fecha_limite']:
+                hoy = datetime.now().date()
+                dias = (meta['fecha_limite'] - hoy).days
+                meta['dias_restantes'] = dias if dias >= 0 else 0
+            else:
+                meta['dias_restantes'] = None
+        
         return render_template('metas.html', metas=metas, user_currency=user_currency, currencies=COMMON_CURRENCIES)
     except Exception as e:
         print(f"Error listando metas: {e}")
+        import traceback
+        traceback.print_exc()
         if conn:
             conn.close()
         flash('Error al cargar metas', 'danger')
@@ -1693,7 +1701,7 @@ def reporte_pdf():
         variacion_ingresos = ((resumen_mes['total_ingresos'] - mes_anterior_data['total_ingresos']) / mes_anterior_data['total_ingresos'] * 100) if mes_anterior_data['total_ingresos'] > 0 else 0
         variacion_gastos = ((resumen_mes['total_gastos'] - mes_anterior_data['total_gastos']) / mes_anterior_data['total_gastos'] * 100) if mes_anterior_data['total_gastos'] > 0 else 0
         
-        # Gastos por categoría - CORREGIDO
+        # Gastos por categoría
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -1718,7 +1726,7 @@ def reporte_pdf():
             """, (session['user_id'], mes_actual, anio_actual))
         gastos_categoria = cursor.fetchall()
         
-        # Ingresos por categoría - CORREGIDO
+        # Ingresos por categoría
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -1773,21 +1781,18 @@ def reporte_pdf():
         presupuestos = cursor.fetchall()
         
         # Metas
-        if os.environ.get('RENDER'):
-            cursor.execute("""
-                SELECT nombre, monto_objetivo, monto_actual, 
-                       (monto_actual / NULLIF(monto_objetivo, 0) * 100) as porcentaje,
-                       fecha_limite
-                FROM metas WHERE usuario_id = %s
-            """, (session['user_id'],))
-        else:
-            cursor.execute("""
-                SELECT nombre, monto_objetivo, monto_actual, 
-                       (monto_actual / NULLIF(monto_objetivo, 0) * 100) as porcentaje,
-                       fecha_limite
-                FROM metas WHERE usuario_id = %s
-            """, (session['user_id'],))
+        cursor.execute("""
+            SELECT nombre, monto_objetivo, monto_actual, fecha_limite
+            FROM metas WHERE usuario_id = %s
+        """, (session['user_id'],))
         metas = cursor.fetchall()
+        
+        # Procesar metas en Python para evitar problemas de compatibilidad
+        for meta in metas:
+            if meta['monto_objetivo'] and meta['monto_objetivo'] > 0:
+                meta['porcentaje'] = (meta['monto_actual'] / meta['monto_objetivo'] * 100)
+            else:
+                meta['porcentaje'] = 0
         
         # Evolución últimos 6 meses
         evolucion = []
@@ -1846,7 +1851,7 @@ def reporte_pdf():
         cursor.close()
         conn.close()
         
-        # Generar PDF (el código de generación de PDF sigue igual)
+        # Generar PDF
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
         styles = getSampleStyleSheet()
@@ -2105,7 +2110,7 @@ def reporte_excel():
             """, (session['user_id'], mes_anterior, anio_anterior))
         mes_anterior_data = cursor.fetchone()
         
-        # Gastos por categoría - CORREGIDO
+        # Gastos por categoría
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -2130,7 +2135,7 @@ def reporte_excel():
             """, (session['user_id'], mes_actual, anio_actual))
         gastos_categoria = cursor.fetchall()
         
-        # Ingresos por categoría - CORREGIDO
+        # Ingresos por categoría
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -2185,21 +2190,18 @@ def reporte_excel():
         presupuestos = cursor.fetchall()
         
         # Metas
-        if os.environ.get('RENDER'):
-            cursor.execute("""
-                SELECT nombre, monto_objetivo, monto_actual, 
-                       (monto_actual / NULLIF(monto_objetivo, 0) * 100) as porcentaje,
-                       fecha_limite
-                FROM metas WHERE usuario_id = %s
-            """, (session['user_id'],))
-        else:
-            cursor.execute("""
-                SELECT nombre, monto_objetivo, monto_actual, 
-                       (monto_actual / NULLIF(monto_objetivo, 0) * 100) as porcentaje,
-                       fecha_limite
-                FROM metas WHERE usuario_id = %s
-            """, (session['user_id'],))
+        cursor.execute("""
+            SELECT nombre, monto_objetivo, monto_actual, fecha_limite
+            FROM metas WHERE usuario_id = %s
+        """, (session['user_id'],))
         metas = cursor.fetchall()
+        
+        # Procesar metas en Python
+        for meta in metas:
+            if meta['monto_objetivo'] and meta['monto_objetivo'] > 0:
+                meta['porcentaje'] = (meta['monto_actual'] / meta['monto_objetivo'] * 100)
+            else:
+                meta['porcentaje'] = 0
         
         # Evolución últimos 6 meses
         evolucion = []
@@ -2256,7 +2258,7 @@ def reporte_excel():
         cursor.close()
         conn.close()
         
-        # Crear libro de Excel (el código de generación de Excel sigue igual)
+        # Crear libro de Excel
         wb = openpyxl.Workbook()
         
         header_font = Font(bold=True, color="FFFFFF")
