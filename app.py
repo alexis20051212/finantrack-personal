@@ -65,7 +65,7 @@ def verificar_presupuestos_notificacion(usuario_id):
                     AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
                 WHERE p.usuario_id = %s AND p.mes = %s AND p.anio = %s
                 GROUP BY c.id, c.nombre, p.limite
-                HAVING gastado > limite
+                HAVING COALESCE(SUM(m.monto), 0) > p.limite
             """, (usuario_id, mes_actual, anio_actual, usuario_id, mes_actual, anio_actual))
         else:
             cursor.execute("""
@@ -424,7 +424,7 @@ def dashboard():
             ingresos_mensuales.append(float(row['ingresos'] or 0))
             gastos_mensuales.append(float(row['gastos'] or 0))
         
-        # Top categorías
+        # Top categorías - CORREGIDO PARA POSTGRESQL
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
@@ -435,7 +435,7 @@ def dashboard():
                     AND EXTRACT(MONTH FROM m.fecha) = %s 
                     AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
                 LIMIT 6
             """, (user_id, mes_actual, anio_actual))
@@ -458,7 +458,7 @@ def dashboard():
         categorias_nombres = [cat['categoria_nombre'] for cat in categorias_top]
         categorias_totales = [float(cat['total']) for cat in categorias_top]
         
-        # Gastos por categoría (detallado)
+        # Gastos por categoría - CORREGIDO PARA POSTGRESQL
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
@@ -469,7 +469,7 @@ def dashboard():
                     AND EXTRACT(MONTH FROM m.fecha) = %s 
                     AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
             """, (user_id, mes_actual, anio_actual))
         else:
@@ -496,7 +496,7 @@ def dashboard():
                     'porcentaje': (float(item['total']) / total_gastos) * 100
                 })
         
-        # Ingresos por categoría
+        # Ingresos por categoría - CORREGIDO PARA POSTGRESQL
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria_nombre, COALESCE(SUM(m.monto), 0) as total
@@ -507,7 +507,7 @@ def dashboard():
                     AND EXTRACT(MONTH FROM m.fecha) = %s 
                     AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
             """, (user_id, mes_actual, anio_actual))
         else:
@@ -1693,7 +1693,7 @@ def reporte_pdf():
         variacion_ingresos = ((resumen_mes['total_ingresos'] - mes_anterior_data['total_ingresos']) / mes_anterior_data['total_ingresos'] * 100) if mes_anterior_data['total_ingresos'] > 0 else 0
         variacion_gastos = ((resumen_mes['total_gastos'] - mes_anterior_data['total_gastos']) / mes_anterior_data['total_gastos'] * 100) if mes_anterior_data['total_gastos'] > 0 else 0
         
-        # Gastos por categoría
+        # Gastos por categoría - CORREGIDO
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -1702,7 +1702,7 @@ def reporte_pdf():
                     AND m.tipo = 'gasto' AND m.usuario_id = %s
                     AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
             """, (session['user_id'], mes_actual, anio_actual))
         else:
@@ -1718,7 +1718,7 @@ def reporte_pdf():
             """, (session['user_id'], mes_actual, anio_actual))
         gastos_categoria = cursor.fetchall()
         
-        # Ingresos por categoría
+        # Ingresos por categoría - CORREGIDO
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -1727,7 +1727,7 @@ def reporte_pdf():
                     AND m.tipo = 'ingreso' AND m.usuario_id = %s
                     AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
             """, (session['user_id'], mes_actual, anio_actual))
         else:
@@ -1846,7 +1846,7 @@ def reporte_pdf():
         cursor.close()
         conn.close()
         
-        # Generar PDF
+        # Generar PDF (el código de generación de PDF sigue igual)
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
         styles = getSampleStyleSheet()
@@ -2105,7 +2105,7 @@ def reporte_excel():
             """, (session['user_id'], mes_anterior, anio_anterior))
         mes_anterior_data = cursor.fetchone()
         
-        # Gastos por categoría
+        # Gastos por categoría - CORREGIDO
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -2114,7 +2114,7 @@ def reporte_excel():
                     AND m.tipo = 'gasto' AND m.usuario_id = %s
                     AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
             """, (session['user_id'], mes_actual, anio_actual))
         else:
@@ -2130,7 +2130,7 @@ def reporte_excel():
             """, (session['user_id'], mes_actual, anio_actual))
         gastos_categoria = cursor.fetchall()
         
-        # Ingresos por categoría
+        # Ingresos por categoría - CORREGIDO
         if os.environ.get('RENDER'):
             cursor.execute("""
                 SELECT c.nombre as categoria, COALESCE(SUM(m.monto), 0) as total
@@ -2139,7 +2139,7 @@ def reporte_excel():
                     AND m.tipo = 'ingreso' AND m.usuario_id = %s
                     AND EXTRACT(MONTH FROM m.fecha) = %s AND EXTRACT(YEAR FROM m.fecha) = %s
                 GROUP BY c.id, c.nombre
-                HAVING total > 0
+                HAVING COALESCE(SUM(m.monto), 0) > 0
                 ORDER BY total DESC
             """, (session['user_id'], mes_actual, anio_actual))
         else:
@@ -2256,7 +2256,7 @@ def reporte_excel():
         cursor.close()
         conn.close()
         
-        # Crear libro de Excel
+        # Crear libro de Excel (el código de generación de Excel sigue igual)
         wb = openpyxl.Workbook()
         
         header_font = Font(bold=True, color="FFFFFF")
