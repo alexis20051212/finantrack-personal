@@ -916,46 +916,83 @@ def nueva_meta():
 @app.route('/metas/aportar/<int:id>', methods=['POST'])
 @login_required
 def aportar_meta(id):
-    monto = float(request.form.get('monto'))
-    descripcion = request.form.get('descripcion', '')
-    
-    conn = get_db_connection()
-    if not conn:
-        flash('Error de conexión', 'danger')
-        return redirect(url_for('listar_metas'))
-    
     try:
+        monto = float(request.form.get('monto'))
+        descripcion = request.form.get('descripcion', '')
+        
+        if monto <= 0:
+            flash('El monto debe ser mayor a 0', 'danger')
+            return redirect(url_for('listar_metas'))
+        
+        conn = get_db_connection()
+        if not conn:
+            flash('Error de conexión a la base de datos', 'danger')
+            return redirect(url_for('listar_metas'))
+        
         cursor = conn.cursor()
+        
+        # Verificar que la meta existe y pertenece al usuario
+        cursor.execute("SELECT id, monto_objetivo, monto_actual FROM metas WHERE id = %s AND usuario_id = %s", (id, session['user_id']))
+        meta = cursor.fetchone()
+        
+        if not meta:
+            cursor.close()
+            conn.close()
+            flash('Meta no encontrada', 'danger')
+            return redirect(url_for('listar_metas'))
+        
+        # Calcular nuevo monto
+        nuevo_monto = meta[2] + monto
+        
+        # Actualizar el monto actual de la meta
         cursor.execute("""
             UPDATE metas 
-            SET monto_actual = monto_actual + %s
+            SET monto_actual = %s
             WHERE id = %s AND usuario_id = %s
-        """, (monto, id, session['user_id']))
+        """, (nuevo_monto, id, session['user_id']))
         
-        if os.environ.get('RENDER'):
-            cursor.execute("""
-                INSERT INTO aportaciones_meta (meta_id, monto, fecha, descripcion)
-                VALUES (%s, %s, CURRENT_DATE, %s)
-            """, (id, monto, descripcion))
-        else:
-            cursor.execute("""
-                INSERT INTO aportaciones_meta (meta_id, monto, fecha, descripcion)
-                VALUES (%s, %s, CURDATE(), %s)
-            """, (id, monto, descripcion))
+        # Insertar la aportación con la fecha como string
+        fecha_actual = datetime.now().strftime('%Y-%m-%d')
+        cursor.execute("""
+            INSERT INTO aportaciones_meta (meta_id, monto, fecha, descripcion)
+            VALUES (%s, %s, %s, %s)
+        """, (id, monto, fecha_actual, descripcion))
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        crear_notificacion(session['user_id'], f"Aportaste ${monto:,.2f} a tu meta", 'exito')
-        flash('Aportación registrada', 'success')
+        # Notificar según el progreso
+        if nuevo_monto >= meta[1]:
+            crear_notificacion(
+                session['user_id'], 
+                f"🎉 ¡Felicidades! Has completado tu meta de ahorro de ${meta[1]:,.2f}!", 
+                'exito'
+            )
+            flash('🎉 ¡Meta completada! Felicitaciones.', 'success')
+        else:
+            porcentaje = (nuevo_monto / meta[1] * 100) if meta[1] > 0 else 0
+            crear_notificacion(
+                session['user_id'], 
+                f"Aportaste ${monto:,.2f}. Progreso: {porcentaje:.1f}% (${nuevo_monto:,.2f} de ${meta[1]:,.2f})", 
+                'info'
+            )
+            flash('¡Aportación registrada exitosamente!', 'success')
+        
+        return redirect(url_for('listar_metas'))
+        
+    except ValueError as e:
+        print(f"Error de valor: {e}")
+        flash('El monto ingresado no es válido', 'danger')
+        return redirect(url_for('listar_metas'))
     except Exception as e:
-        print(f"Error aportando a meta: {e}")
-        if conn:
+        print(f"Error registrando aportación: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error al registrar la aportación. Por favor, intenta de nuevo.', 'danger')
+        if 'conn' in locals() and conn:
             conn.close()
-        flash('Error al registrar aportación', 'danger')
-    
-    return redirect(url_for('listar_metas'))
+        return redirect(url_for('listar_metas'))
 
 @app.route('/metas/eliminar/<int:id>')
 @login_required
@@ -1780,7 +1817,7 @@ def reporte_pdf():
             """, (session['user_id'], mes_actual, anio_actual, session['user_id'], mes_actual, anio_actual))
         presupuestos = cursor.fetchall()
         
-        # Metas
+        # Metas - obtener y procesar en Python
         cursor.execute("""
             SELECT nombre, monto_objetivo, monto_actual, fecha_limite
             FROM metas WHERE usuario_id = %s
@@ -1851,7 +1888,9 @@ def reporte_pdf():
         cursor.close()
         conn.close()
         
-        # Generar PDF
+        # Generar PDF - (el código de generación de PDF es extenso, pero se mantiene igual)
+        # ... [código de generación de PDF aquí] ...
+        
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
         styles = getSampleStyleSheet()
@@ -2258,7 +2297,7 @@ def reporte_excel():
         cursor.close()
         conn.close()
         
-        # Crear libro de Excel
+        # Crear libro de Excel - (el código de generación de Excel es extenso, pero se mantiene igual)
         wb = openpyxl.Workbook()
         
         header_font = Font(bold=True, color="FFFFFF")
